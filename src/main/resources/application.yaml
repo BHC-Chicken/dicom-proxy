@@ -1,6 +1,6 @@
 spring:
   application:
-    name: dicom
+    name: dicom-proxy
   threads:
     virtual:
       enabled: true
@@ -9,6 +9,6 @@ spring:
       pem:
         dicom-bundle:
           truststore:
-            certificate: "file:/home/hash/irm.pem"
+            certificate: "${CERTIFICATE_PATH}"
 
-base-url : "https://localhost:9443"
+base-url : "${BASE_URL}"
