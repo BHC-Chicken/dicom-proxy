@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: dicom
+  threads:
+    virtual:
+      enabled: true
+  ssl:
+    bundle:
+      pem:
+        dicom-bundle:
+          truststore:
+            certificate: "file:/home/hash/irm.pem"
+
+base-url : "https://localhost:9443"
