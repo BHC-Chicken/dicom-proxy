@@ -16,5 +16,9 @@ spring:
             certificate: "${CERTIFICATE_PATH}"
           key:
             password: "${CERTIFICATE_PASSWORD}"
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 500MB
 
 base-url: "${BASE_URL}"
