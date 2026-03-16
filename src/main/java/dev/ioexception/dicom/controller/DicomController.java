@@ -36,9 +36,9 @@ public class DicomController implements DicomApiDocs {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "DICOM 파일에서 Study UID를 찾을 수 없습니다.");
         }
 
-        log.info("request studyUid = {}, sourceId = {}", extractedStudyUid, sourceId);
-        dicomForwardService.forwardFilesAsync(files, extractedStudyUid, sourceId);
+        List<String> results = dicomForwardService.forwardFilesAsync(files, extractedStudyUid, sourceId);
+        String finalResponse = String.join("\n", results);
 
-        return ResponseEntity.ok("Study UID [" + extractedStudyUid + "] 총 " + files.size() + "개 파일 중계 완료");
+        return ResponseEntity.ok(finalResponse);
     }
 }

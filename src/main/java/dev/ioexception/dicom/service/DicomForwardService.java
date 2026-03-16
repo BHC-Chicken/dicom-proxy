@@ -1,5 +1,6 @@
 package dev.ioexception.dicom.service;
 
+import dev.ioexception.dicom.common.DicomXmlParserUtil;
 import dev.ioexception.dicom.config.DicomClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,26 +24,28 @@ import java.util.concurrent.Executors;
 public class DicomForwardService {
     private final DicomClient dicomClient;
 
-    public void forwardFilesAsync(List<MultipartFile> files, String studyUid, String sourceId) {
+    public List<String> forwardFilesAsync(List<MultipartFile> files, String studyUid, String sourceId) {
         log.info("총 {} 개의 파일 비동기 전송 시작 (Study: {}, Source: {})", files.size(), studyUid, sourceId);
 
         try (ExecutorService virtualExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<CompletableFuture<Void>> futures = files.stream().map(file -> {
+            List<CompletableFuture<String>> futures = files.stream().map(file -> {
                 try {
                     byte[] fileBytes = file.getBytes();
                     String filename = file.getOriginalFilename();
-                    return CompletableFuture.runAsync(() -> sendSingleFile(fileBytes, filename, studyUid, sourceId), virtualExecutor);
+                    return CompletableFuture.supplyAsync(() -> sendSingleFile(fileBytes, filename, studyUid, sourceId), virtualExecutor);
                 } catch (Exception e) {
-                    log.error("파일 읽기 오류: {}", file.getOriginalFilename(), e);
-                    return CompletableFuture.completedFuture((Void) null);
+                    log.error("[{}] 파일 읽기 오류 발생", file.getOriginalFilename(), e);
+                    return CompletableFuture.completedFuture(String.format("[%s] 파일 읽기 실패: %s", file.getOriginalFilename(), e.getMessage()));
                 }
             }).toList();
 
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            return futures.stream()
+                    .map(CompletableFuture::join)
+                    .toList();
         }
     }
 
-    private void sendSingleFile(byte[] fileBytes, String filename, String studyUid, String sourceId) {
+    private String sendSingleFile(byte[] fileBytes, String filename, String studyUid, String sourceId) {
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
 
@@ -59,18 +62,17 @@ public class DicomForwardService {
             };
 
             body.add("file", new HttpEntity<>(resource, partHeaders));
-            log.info("sourceId: {}", sourceId);
-            log.info("studyUid: {}", studyUid);
 
-            String response = dicomClient.sendDicom(
-                    studyUid,
-                    sourceId,
-                    body
-            );
+            String rawXmlResponse = dicomClient.sendDicom(studyUid, sourceId, body);
+            String parsedResult = DicomXmlParserUtil.extractSuccessInfo(rawXmlResponse);
 
-            log.info("[{}] 전송 성공: {}", filename, response);
+            log.info("[{}] 전송 성공: {}", filename, parsedResult);
+
+            return String.format("[%s] 성공 -> %s", filename, parsedResult);
         } catch (Exception e) {
             log.error("[{}] 전송 실패", filename, e);
+
+            return String.format("[%s] 실패 -> %s", filename, e.getMessage());
         }
     }
 }
