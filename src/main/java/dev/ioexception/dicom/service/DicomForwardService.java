@@ -51,10 +51,16 @@ public class DicomForwardService {
 
             ByteArrayResource resource = new ByteArrayResource(fileBytes) {
                 @Override
-                public String getFilename() { return filename; }
+                public String getFilename() {
+                    log.info("filename: {}", filename);
+
+                    return filename;
+                }
             };
 
             body.add("file", new HttpEntity<>(resource, partHeaders));
+            log.info("sourceId: {}", sourceId);
+            log.info("studyUid: {}", studyUid);
 
             String response = dicomClient.sendDicom(
                     studyUid,
@@ -64,7 +70,7 @@ public class DicomForwardService {
 
             log.info("[{}] 전송 성공: {}", filename, response);
         } catch (Exception e) {
-            log.error("[{}] 전송 실패: {}", filename, e.getMessage());
+            log.error("[{}] 전송 실패", filename, e);
         }
     }
 }

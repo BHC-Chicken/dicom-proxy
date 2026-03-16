@@ -8,7 +8,13 @@ spring:
     bundle:
       pem:
         dicom-bundle:
+          keystore:
+            certificate: "${CERTIFICATE_PATH}"
+            private-key: "${CERTIFICATE_PATH}"
+            private-key-password: "${CERTIFICATE_PASSWORD}"
           truststore:
             certificate: "${CERTIFICATE_PATH}"
+          key:
+            password: "${CERTIFICATE_PASSWORD}"
 
-base-url : "${BASE_URL}"
+base-url: "${BASE_URL}"
