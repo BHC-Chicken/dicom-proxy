@@ -14,7 +14,9 @@ import org.springframework.web.service.invoker.HttpServiceProxyFactory;
 import javax.net.ssl.*;
 import java.net.Socket;
 import java.net.http.HttpClient;
-import java.security.*;
+import java.security.Principal;
+import java.security.PrivateKey;
+import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 
 @Slf4j
@@ -24,7 +26,7 @@ public class DicomClientConfig {
     private String baseURL;
 
     @Bean
-    public DicomClient dicomRestClient(SslBundles sslBundles) throws Exception {
+    public DicomDcmClient dicomRestClient(SslBundles sslBundles) throws Exception {
         SslBundle sslBundle = sslBundles.getBundle("dicom-bundle");
 
         SSLContext sslContext = createSslContext(sslBundle);
@@ -42,7 +44,7 @@ public class DicomClientConfig {
         RestClientAdapter adapter = RestClientAdapter.create(restClient);
         HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
 
-        return factory.createClient(DicomClient.class);
+        return factory.createClient(DicomDcmClient.class);
     }
 
     private SSLContext createSslContext(SslBundle sslBundle) throws Exception {
@@ -87,6 +89,7 @@ public class DicomClientConfig {
         sslParams.setProtocols(new String[]{"TLSv1.2"});
 
         return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .sslContext(sslContext)
                 .sslParameters(sslParams)
                 .build();
