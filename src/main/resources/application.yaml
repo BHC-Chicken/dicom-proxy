@@ -22,3 +22,11 @@ spring:
       max-request-size: 500MB
 
 base-url: "${BASE_URL}"
+
+dicom:
+  scp:
+    aet: "${DICOM_SCP_AET}"
+    port: "${DICOM_SCP_PORT}"
+    allowed-aets: "${DICOM_SCP_ALLOWED_AETS}"
+    base-dir: "${DICOM_SCP_BASE_DIR}"
+    max-threads: "${DICOM_SCP_MAX_THREADS}"

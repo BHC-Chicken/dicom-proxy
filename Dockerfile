@@ -1,5 +1,5 @@
 # Java 21 실행 환경을 제공하는 가벼운 Alpine 베이스 이미지 사용
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine-3.23
 
 # 컨테이너 내부에 작업 디렉토리 생성
 WORKDIR /app
