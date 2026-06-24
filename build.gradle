@@ -29,7 +29,16 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2'
+    implementation 'org.postgresql:postgresql:42.7.11'
+    implementation 'com.mysql:mysql-connector-j:9.6.0'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa:4.0.5'
+
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+
+    implementation 'co.elastic.clients:elasticsearch-java:9.3.4'
+    implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
+    implementation 'co.elastic.logging:logback-ecs-encoder:1.7.0'
+    implementation 'co.elastic.apm:apm-agent-api:1.55.6'
 
     // dcm4che
     implementation 'org.dcm4che:dcm4che-core:5.29.1'
