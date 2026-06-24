@@ -1,6 +1,6 @@
 package dev.ioexception.dicom.common;
 
-import dev.ioexception.dicom.dto.DicomUidResponse;
+import dev.ioexception.dicom.dto.response.DicomUidResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
@@ -13,7 +13,7 @@ import java.io.IOException;
 public class DicomParserUtil {
     public static DicomUidResponse extractUid(MultipartFile file) {
         try (DicomInputStream dis = new DicomInputStream(file.getInputStream())) {
-            // 무거운 픽셀(영상) 데이터는 읽지 않고 건너뛰도록 설정 (메모리 절약)
+            // 영상 데이터는 읽지 않고 건너뛰도록 설정
             dis.setIncludeBulkData(DicomInputStream.IncludeBulkData.NO);
 
             Attributes dataset = dis.readDataset();

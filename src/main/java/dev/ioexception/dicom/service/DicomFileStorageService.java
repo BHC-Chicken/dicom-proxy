@@ -12,7 +12,7 @@ import java.nio.file.*;
 
 @Slf4j
 @Service
-public class DicomStorageService {
+public class DicomFileStorageService {
 
     @Value("${dicom.scp.base-dir}")
     private String baseDir;
@@ -26,6 +26,7 @@ public class DicomStorageService {
     private Attributes parseDataset(Path tempFilePath) throws IOException {
         try (DicomInputStream dis = new DicomInputStream(tempFilePath.toFile())) {
             // BulkData(픽셀 영상)를 제외하고 텍스트 태그만 읽어 메모리 최적화
+            log.info("read tags from file {}", tempFilePath);
             dis.setIncludeBulkData(DicomInputStream.IncludeBulkData.NO);
 
             return dis.readDataset();
@@ -43,6 +44,7 @@ public class DicomStorageService {
         // 포맷: {baseDir}/{PatientID}/{StudyDate}_{StudyInstanceUID}/{SeriesInstanceUID}_{Modality}/{SOPInstanceUID}.dcm
         String dirPath = String.format("%s/%s_%s/%s_%s", patientId, studyDate, studyUid, seriesUid, modality);
         Path targetDir = Paths.get(baseDir, dirPath);
+        log.info("targetDir {}", targetDir);
 
         // 상위 디렉토리 안전하게 생성 (이미 있으면 무시됨)
         Files.createDirectories(targetDir);

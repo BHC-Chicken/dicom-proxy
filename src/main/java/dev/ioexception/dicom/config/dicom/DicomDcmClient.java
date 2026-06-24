@@ -1,4 +1,4 @@
-package dev.ioexception.dicom.config;
+package dev.ioexception.dicom.config.dicom;
 
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.PathVariable;

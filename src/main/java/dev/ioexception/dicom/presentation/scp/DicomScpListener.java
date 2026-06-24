@@ -1,6 +1,7 @@
 package dev.ioexception.dicom.presentation.scp;
 
-import dev.ioexception.dicom.service.DicomStorageService;
+import dev.ioexception.dicom.aop.DicomMdcLog;
+import dev.ioexception.dicom.service.DicomFileStorageService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.dcm4che3.net.service.BasicCEchoSCP;
 import org.dcm4che3.net.service.BasicCStoreSCP;
 import org.dcm4che3.net.service.DicomServiceRegistry;
 import org.jspecify.annotations.NonNull;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -20,13 +22,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 @Slf4j
 @Component
+@DicomMdcLog
 @RequiredArgsConstructor
 public class DicomScpListener {
-    private final DicomStorageService dicomStorageService;
+    private final DicomFileStorageService dicomFileStorageService;
 
     private Device device;
     private ApplicationEntity ae;
@@ -102,7 +106,7 @@ public class DicomScpListener {
 
         // 지원할 DICOM 명령어 등록
         serviceRegistry.addDicomService(new BasicCEchoSCP()); // C-ECHO (네트워크 핑 테스트)
-        serviceRegistry.addDicomService(new CustomCStoreSCP(dicomStorageService));
+        serviceRegistry.addDicomService(new CustomCStoreSCP(dicomFileStorageService));
 
         ae.setDimseRQHandler(serviceRegistry);
     }
@@ -146,15 +150,21 @@ public class DicomScpListener {
      * 실제 C-STORE 요청(파일 수신)을 처리하는 내부 클래스
      */
     private static class CustomCStoreSCP extends BasicCStoreSCP {
-        private final DicomStorageService storageService;
+        private final DicomFileStorageService storageService;
 
-        public CustomCStoreSCP(DicomStorageService storageService) {
+        public CustomCStoreSCP(DicomFileStorageService storageService) {
             super("*");
             this.storageService = storageService;
         }
 
         @Override
         protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
+            String traceId = UUID.randomUUID().toString().replace("-", "");
+            MDC.put("trace.id", traceId);
+            if (as.getSocket() != null) {
+                MDC.put("client.ip", as.getSocket().getInetAddress().getHostAddress());
+            }
+
             log.info("--- [C-STORE 파일 수신 시작] SCU: {} ---", as.getCallingAET());
             Path tempFilePath = null;
 
@@ -166,16 +176,21 @@ public class DicomScpListener {
                 // 2. 비즈니스 로직(파싱, 경로 이동)은 Service에게 위임
                 storageService.processAndSaveDicom(tempFilePath, rq);
 
+                log.info("--- [C-STORE 파일 수신 정상 종료] ---");
             } catch (Exception e) {
                 log.error("DICOM 처리 실패: {}", e.getMessage(), e);
                 throw new IOException("C-STORE 프로세스 실패", e);
             } finally {
                 // 3. 에러가 나거나 이동에 실패해 임시 파일이 남아있다면 삭제 보장
                 if (tempFilePath != null && Files.exists(tempFilePath)) {
-                    Files.deleteIfExists(tempFilePath);
+                    try {
+                        Files.deleteIfExists(tempFilePath);
+                    } catch (IOException e) {
+                        log.warn("임시 파일 삭제 실패: {}", tempFilePath);
+                    }
                 }
+                MDC.clear();
             }
-            log.info("--- [C-STORE 파일 수신 정상 종료] ---");
         }
     }
 }
