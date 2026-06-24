@@ -1,5 +1,6 @@
 package dev.ioexception.dicom.config.discord;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
@@ -8,11 +9,14 @@ import org.springframework.web.service.invoker.HttpServiceProxyFactory;
 
 @Configuration
 public class DiscordClientConfig {
+	@Value("${DISCORD_WEBHOOK_URL}")
+	private String discordWebhookURL;
+
 
 	@Bean
 	public DiscordWebhookClient discordWebhookClient() {
 		RestClient restClient = RestClient.builder()
-				.baseUrl("https://discordapp.com/api/webhooks/1504009932687675392/qnowT2co3No8Usonpx-WsUmTX5A6WX6HQRPv8TQT2HV_IqereTdDh6Pop0ckO1E6G3cu")
+				.baseUrl(discordWebhookURL)
 				.build();
 		RestClientAdapter adapter = RestClientAdapter.create(restClient);
 		HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();

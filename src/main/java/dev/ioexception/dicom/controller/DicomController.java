@@ -2,8 +2,11 @@ package dev.ioexception.dicom.controller;
 
 import dev.ioexception.dicom.common.DicomParserUtil;
 import dev.ioexception.dicom.controller.swagger.DicomApiDocs;
-import dev.ioexception.dicom.dto.DicomUidResponse;
-import dev.ioexception.dicom.service.DicomForwardService;
+import dev.ioexception.dicom.dto.request.PurgeRequest;
+import dev.ioexception.dicom.dto.response.DicomUidResponse;
+import dev.ioexception.dicom.dto.response.PurgeSummaryInfoResponse;
+import dev.ioexception.dicom.service.DicomWebService;
+import dev.ioexception.dicom.service.DicomPurgeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -12,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,7 +28,8 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 public class DicomController implements DicomApiDocs {
-    private final DicomForwardService dicomForwardService;
+    private final DicomPurgeService dicomPurgeService;
+    private final DicomWebService dicomWebService;
 
     @Override
     public ResponseEntity<String> forwardDicomFilesAsync(
@@ -37,7 +42,7 @@ public class DicomController implements DicomApiDocs {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "DICOM 파일에서 UID 정보를 찾을 수 없습니다.");
         }
 
-        List<String> results = dicomForwardService.forwardFilesAsync(files, uids.studyUid(), sourceId);
+        List<String> results = dicomWebService.forwardFilesAsync(files, uids.studyUid(), sourceId);
 
         String responseUid = "=== WADO 테스트용 UID (첫 번째 파일 기준) ===\n" +
                 "StudyUID: " + uids.studyUid() + "\n" +
@@ -58,7 +63,7 @@ public class DicomController implements DicomApiDocs {
             @RequestParam(value = "contentType", defaultValue = "image/jpeg") String contentType) {
 
         try {
-            byte[] imageBytes = dicomForwardService.getWadoImage(studyUID, seriesUID, objectUID, sourceId, contentType);
+            byte[] imageBytes = dicomWebService.getWadoImage(studyUID, seriesUID, objectUID, sourceId, contentType);
 
             ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.ok();
 
@@ -82,7 +87,7 @@ public class DicomController implements DicomApiDocs {
             @RequestParam("patientId") String patientId) {
 
         try {
-            byte[] zipBytes = dicomForwardService.downloadStudyZip(studyUID, patientId);
+            byte[] zipBytes = dicomWebService.downloadStudyZip(studyUID, patientId);
 
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType("application/zip"))
@@ -118,9 +123,8 @@ public class DicomController implements DicomApiDocs {
                 responseMediaType = MediaType.APPLICATION_JSON;
             }
 
-            String metadata = dicomForwardService.retrieveStudyMetadata(
-                    studyUID, patientId, acceptHeader, includePrivate, groups, xsl
-            );
+            String metadata = dicomWebService.retrieveStudyMetadata(
+                    studyUID, patientId, acceptHeader, includePrivate, groups, xsl);
 
             return ResponseEntity.ok()
                     .contentType(responseMediaType)
@@ -139,11 +143,18 @@ public class DicomController implements DicomApiDocs {
             @RequestParam(value = "totalInstanceCount", required = false) Integer totalInstanceCount) {
 
         try {
-            dicomForwardService.createDicomManifestKOS(studyUid, kosUid, sourceId, hasReport, totalInstanceCount);
+            dicomWebService.createDicomManifestKOS(studyUid, kosUid, sourceId, hasReport, totalInstanceCount);
 
             return ResponseEntity.ok("KOS 문서가 성공적으로 생성 및 등록되었습니다.");
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
+    }
+
+    @Override
+    public ResponseEntity<PurgeSummaryInfoResponse> purgeDicom(@RequestBody PurgeRequest purgeRequest) {
+        PurgeSummaryInfoResponse response = dicomPurgeService.executePurgeProcess(purgeRequest);
+
+        return ResponseEntity.ok(response);
     }
 }
