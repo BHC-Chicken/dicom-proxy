@@ -1,5 +1,6 @@
 package dev.ioexception.dicom.service;
 
+import co.elastic.apm.api.CaptureSpan;
 import lombok.extern.slf4j.Slf4j;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
@@ -23,6 +24,7 @@ public class DicomFileStorageService {
         moveToFinalDestination(tempFilePath, finalFilePath);
     }
 
+    @CaptureSpan(value = "1. Parse DICOM Tags", type = "custom")
     private Attributes parseDataset(Path tempFilePath) throws IOException {
         try (DicomInputStream dis = new DicomInputStream(tempFilePath.toFile())) {
             // BulkData(픽셀 영상)를 제외하고 텍스트 태그만 읽어 메모리 최적화
@@ -33,6 +35,7 @@ public class DicomFileStorageService {
         }
     }
 
+    @CaptureSpan(value = "2. Build Final Path", type = "custom")
     private Path buildFinalPath(Attributes dataset, Attributes rq) throws IOException {
         String patientId = dataset.getString(Tag.PatientID, "UNKNOWN_PATIENT");
         String studyDate = dataset.getString(Tag.StudyDate, "UNKNOWN_DATE");
@@ -52,6 +55,7 @@ public class DicomFileStorageService {
         return targetDir.resolve(sopUid + ".dcm");
     }
 
+    @CaptureSpan(value = "3. Move File to Storage", type = "storage")
     private void moveToFinalDestination(Path source, Path target) throws IOException {
         try {
             // 원자적 이동을 시도 (성공 시 파일이 깨질 위험 원천 차단)
