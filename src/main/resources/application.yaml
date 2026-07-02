@@ -49,6 +49,7 @@ discord:
 
 dicom:
   scp:
+    enabled: "${DICOM_SCP_ENABLED:true}"
     aet: "${DICOM_SCP_AET}"
     port: "${DICOM_SCP_PORT}"
     allowed-aets: "${DICOM_SCP_ALLOWED_AETS}"

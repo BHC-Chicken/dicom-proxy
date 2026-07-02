@@ -14,6 +14,7 @@ import org.dcm4che3.net.service.DicomServiceRegistry;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -23,6 +24,7 @@ import java.util.concurrent.*;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(value = "dicom.scp.enabled", havingValue = "true", matchIfMissing = true)
 public class DicomScpListener {
     private final DicomCStoreService dicomCStoreService;
 
