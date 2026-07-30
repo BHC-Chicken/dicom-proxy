@@ -9,7 +9,7 @@ import org.springframework.web.service.invoker.HttpServiceProxyFactory;
 
 @Configuration
 public class DiscordClientConfig {
-	@Value("${DISCORD_WEBHOOK_URL}")
+	@Value("${discord.webhook.url:${DISCORD_WEBHOOK_URL:http://localhost}}")
 	private String discordWebhookURL;
 
 
