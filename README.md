@@ -144,17 +144,18 @@ files: [study_1.2.410.xxxxxx.dat, study_1.2.410.yyyyyy.dat]
 | 환경변수 명 (`Environment Variable`) | 기본값 / 예시 설정 | 필수 여부 | 설명 |
 | :--- | :--- | :---: | :--- |
 | **`BASE_URL`** | `https://pacs.hospital.com:9443` | **🚨 필수** | 중계 목적지 타겟 PACS 서버의 STOW-RS Base URL |
-| **`MAX_DICOM_REQUEST`** | `10` | **선택** | 사용자 PC/서버 사양에 맞춘 중계 전송 최대 동시 Semaphore 허가 개수 |
-| **`PURGE_MAX_THREADS`** | `5` | **선택** | DICOM 퍼지(Purge) 아카이빙 배치 처리 시 최대 동시 작업 스레드 수 |
-| **`CERTIFICATE_PATH`** | `/app/certs/server.pem` | **선택 (mTLS)** | mTLS 인증 전송 시 사용할 클라이언트 SSL/TLS 인증서 파일 경로 |
-| **`CERTIFICATE_PASSWORD`** | `your_cert_password` | **선택 (mTLS)** | 클라이언트 인증서 개인키(Private Key) 비밀번호 |
-| **`CAPATH`** | `/app/certs/ca.crt` | **선택 (mTLS)** | 타겟 PACS 서버의 SSL 검증용 CA 루트 인증서 경로 |
-| **`DISCORD_WEBHOOK_URL`** | `https://discord.com/api/webhooks/...` | **선택** | 중계 실패 및 모니터링 알림 수신용 디스코드 웹훅 URL |
-| **`SPRING_ELASTICSEARCH_URIS`** | `https://localhost:9200` | **선택 (APM)** | APM 및 트레이싱 로그 수집용 ElasticSearch 엔드포인트 |
-| **`SPRING_ELASTICSEARCH_USERNAME`** | `elastic` | **선택 (APM)** | ElasticSearch 계정 ID |
-| **`SPRING_ELASTICSEARCH_PASSWORD`** | `your_elastic_password` | **선택 (APM)** | ElasticSearch 계정 비밀번호 |
-| **`MYSQL_DATASOURCE_URL`** | `jdbc:mysql://localhost:3306/dicom` | **선택 (DB)** | DB 연동 시 MySQL 데이터베이스 접속 URL |
-| **`POSTGRESQL_DATASOURCE_URL`** | `jdbc:postgresql://localhost:5432/dicom_db` | **선택 (DB)** | DB 연동 시 PostgreSQL 데이터베이스 접속 URL |
+| **`POSTGRESQL_DATASOURCE_URL`** | `jdbc:postgresql://localhost:5432/dicom_db` | **🚨 필수** | PostgreSQL 데이터베이스 접속 URL |
+| **`POSTGRESQL_DATASOURCE_USERNAME`** | `postgres` | **🚨 필수** | PostgreSQL 접속 계정 ID |
+| **`POSTGRESQL_DATASOURCE_PASSWORD`** | `your_postgres_password` | **🚨 필수** | PostgreSQL 접속 계정 비밀번호 |
+| **`PURGE_ENABLED`** | `false` | **💡 선택 (기본값: false)** | DICOM Purge 배치 서비스 활성화 여부 (`true` 설정 시 기능 활성화) |
+| **`PURGE_MAX_THREADS`** | `5` | **💡 선택** | DICOM 퍼지(Purge) 아카이빙 배치 처리 시 최대 동시 작업 스레드 수 |
+| **`CERTIFICATE_PATH`** | `/app/certs/server.pem` | **💡 선택 (mTLS)** | mTLS 인증 전송 시 사용할 클라이언트 SSL/TLS 인증서 파일 경로 |
+| **`CERTIFICATE_PASSWORD`** | `your_cert_password` | **💡 선택 (mTLS)** | 클라이언트 인증서 개인키(Private Key) 비밀번호 |
+| **`CAPATH`** | `/app/certs/ca.crt` | **💡 선택 (mTLS)** | 타겟 PACS 서버의 SSL 검증용 CA 루트 인증서 경로 |
+| **`DISCORD_WEBHOOK_URL`** | `https://discord.com/api/webhooks/...` | **💡 선택** | 중계 실패 및 모니터링 알림 수신용 디스코드 웹훅 URL (미설정 시 무시) |
+| **`SPRING_ELASTICSEARCH_URIS`** | `https://localhost:9200` | **💡 선택 (APM)** | APM 및 트레이싱 로그 수집용 ElasticSearch 엔드포인트 |
+| **`SPRING_ELASTICSEARCH_USERNAME`** | `elastic` | **💡 선택 (APM)** | ElasticSearch 계정 ID |
+| **`SPRING_ELASTICSEARCH_PASSWORD`** | `your_elastic_password` | **💡 선택 (APM)** | ElasticSearch 계정 비밀번호 |
 
 ### 3. `application.yaml` 구성 예시
 
