@@ -39,3 +39,5 @@ out/
 logs/
 
 agent/
+
+.DS_Store
