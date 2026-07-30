@@ -43,6 +43,7 @@ dependencies {
     // dcm4che
     implementation 'org.dcm4che:dcm4che-core:5.29.1'
     implementation 'org.dcm4che:dcm4che-net:5.29.1'
+    implementation 'org.dcm4che:dcm4che-mime:5.29.1'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -53,4 +54,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    if (project.hasProperty('testJvmArgs')) {
+        jvmArgs project.property('testJvmArgs').toString().split(' ')
+    }
 }

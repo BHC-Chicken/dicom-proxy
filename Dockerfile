@@ -8,6 +8,9 @@ WORKDIR /app
 # Alpine 환경에서 java.security 파일의 일반적인 경로를 수정합니다.
 RUN sed -i 's/TLSv1, TLSv1.1, //g' $JAVA_HOME/conf/security/java.security
 
+# Elastic APM Agent 파일 복사
+COPY agent/elastic-apm-agent.jar elastic-apm-agent.jar
+
 # 방금 Gradle로 빌드한 JAR 파일을 컨테이너 안의 app.jar로 복사
 COPY build/libs/*.jar app.jar
 
@@ -16,8 +19,8 @@ ENV JAVA_OPTS="-Dhttps.protocols=TLSv1,TLSv1.1,TLSv1.2 \
                -Djdk.tls.client.protocols=TLSv1,TLSv1.1,TLSv1.2 \
                -Dsun.security.ssl.allowUnsafeRenegotiation=true"
 
-# 스프링 부트 기본 포트 노출
-EXPOSE 8080
+# 스프링 부트 기본 포트 노출 (application.yaml에 정의된 80 포트)
+EXPOSE 80
 
-# 컨테이너가 켜질 때 스프링 부트 앱 실행
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+# 컨테이너가 켜질 때 Elastic APM Agent와 함께 스프링 부트 앱 실행
+ENTRYPOINT ["sh", "-c", "java -javaagent:/app/elastic-apm-agent.jar $JAVA_OPTS -jar app.jar"]

@@ -1,0 +1,57 @@
+services:
+  dicom-proxy:
+    image: dicom-proxy:latest
+    container_name: dicom-proxy-service
+    ports:
+      - "80:80" # Spring Boot Web API 포트
+      - "11112:11112" # DICOM SCP 포트
+    volumes:
+      # 로컬 호스트 경로의 인증서와 DICOM 저장 디렉토리를 컨테이너 내부로 바인딩 마운트
+      - ./certs/server.pem:/app/certs/server.pem:ro
+      - ./certs/ca.crt:/app/certs/ca.crt:ro
+      - ./dicom-temp:/app/dicom-temp
+    environment:
+      # JVM 옵션 및 레거시 TLS 설정, Elastic APM 설정 (-javaagent는 Dockerfile ENTRYPOINT에 이미 내장됨)
+      - JAVA_OPTS=-Dhttps.protocols=TLSv1,TLSv1.1,TLSv1.2 -Djdk.tls.client.protocols=TLSv1,TLSv1.1,TLSv1.2 -Dsun.security.ssl.allowUnsafeRenegotiation=true -Delastic.apm.service_name=dicom-proxy-service -Delastic.apm.server_urls=http://host.docker.internal:8200 -Delastic.apm.secret_token= -Delastic.apm.environment=dev -Delastic.apm.application_packages=dev.ioexception.dicom -Delastic.apm.capture_statement_parameters=true
+
+      # Spring Boot 환경변수
+      - BASE_URL=https://target-pacs-server.example.com:9443
+      - CERTIFICATE_PATH=/app/certs/server.pem
+      - CERTIFICATE_PASSWORD=your_cert_password
+      - CAPATH=/app/certs/ca.crt
+
+      # 동시성 가버너 (스레드/Semaphore 허가 한도 제어)
+      - MAX_DICOM_REQUEST=10
+      - PURGE_MAX_THREADS=5
+
+      # DICOM SCP 관련 설정
+      - DICOM_SCP_ENABLED=false
+      - DICOM_SCP_AET=HASH
+      - DICOM_SCP_ALLOWED_AETS=:ALLOWED_AET_1,ALLOWED_AET_2,MARK
+      - DICOM_SCP_BASE_DIR=/app/dicom-temp
+      - DICOM_SCP_MAX_THREADS=50
+      - DICOM_SCP_PORT=11112
+
+      # Discord 알림 설정
+      - DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
+
+      # MySQL (로컬 호스트 디비 접속을 위한 host.docker.internal 맵핑)
+      - MYSQL_DATASOURCE_URL=jdbc:mysql://host.docker.internal:3306/dicom
+      - MYSQL_DATASOURCE_USERNAME=root
+      - MYSQL_DATASOURCE_PASSWORD=your_mysql_password
+
+      # PostgreSQL (로컬 호스트 디비 접속을 위한 host.docker.internal 맵핑)
+      - POSTGRESQL_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/dicom_db
+      - POSTGRESQL_DATASOURCE_USERNAME=postgres
+      - POSTGRESQL_DATASOURCE_PASSWORD=your_postgres_password
+
+      # Elasticsearch (로컬 호스트 ES 접속을 위한 host.docker.internal 맵핑)
+      - SPRING_ELASTICSEARCH_URIS=https://host.docker.internal:9200
+      - SPRING_ELASTICSEARCH_USERNAME=elastic
+      - SPRING_ELASTICSEARCH_PASSWORD=your_elastic_password
+
+    # 컨테이너 내에서 host.docker.internal 도메인을 호스트 머신 IP로 연결하기 위한 설정 (macOS 호스트 연결용)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+#restart: always

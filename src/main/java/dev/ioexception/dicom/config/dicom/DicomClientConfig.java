@@ -26,22 +26,21 @@ public class DicomClientConfig {
     private String baseURL;
 
     @Bean
-    public DicomDcmClient dicomRestClient(SslBundles sslBundles) throws Exception {
+    public RestClient proxyRestClient(SslBundles sslBundles) throws Exception {
         SslBundle sslBundle = sslBundles.getBundle("dicom-bundle");
 
         SSLContext sslContext = createSslContext(sslBundle);
         HttpClient httpClient = createHttpClient(sslContext);
 
-        RestClient restClient = RestClient.builder()
+        return RestClient.builder()
                 .baseUrl(baseURL)
                 .requestFactory(new JdkClientHttpRequestFactory(httpClient))
-                .requestInterceptor(((request, body, execution) -> {
-                    log.info("[DicomClient] 실제 요청 URL: {} {}", request.getMethod(), request.getURI());
-                    return execution.execute(request, body);
-                }))
                 .build();
+    }
 
-        RestClientAdapter adapter = RestClientAdapter.create(restClient);
+    @Bean
+    public DicomDcmClient dicomRestClient(RestClient proxyRestClient) {
+        RestClientAdapter adapter = RestClientAdapter.create(proxyRestClient);
         HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
 
         return factory.createClient(DicomDcmClient.class);

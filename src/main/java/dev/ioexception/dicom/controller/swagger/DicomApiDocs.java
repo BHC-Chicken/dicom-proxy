@@ -1,29 +1,41 @@
 package dev.ioexception.dicom.controller.swagger;
 
 import dev.ioexception.dicom.dto.request.PurgeRequest;
+import dev.ioexception.dicom.dto.response.DicomForwardResponse;
 import dev.ioexception.dicom.dto.response.PurgeSummaryInfoResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 @RequestMapping("/api/dicom")
-@Tag(name = "DICOM API", description = "DICOM 파일 중계 API")
+@Tag(name = "DICOM API", description = "DICOM Zero-Copy 프록시 중계 API")
 public interface DicomApiDocs {
-	@Operation(summary = "DICOM 다중 파일 비동기 중계", description = "여러 장의 DICOM 파일을 받아 타겟 서버로 병렬 전송합니다.")
-	@PostMapping(value = "/forward-async", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	ResponseEntity<String> forwardDicomFilesAsync(
 
+	@Operation(summary = "DICOM Zero-Copy 스트리밍 중계 (.dat / STOW-RS)", description = "단일 또는 다중 .dat 패키지 파일(Swagger/Form 다중 선택) 또는 다이렉트 STOW-RS 스트림을 수신하여 각 .dat 파일별로 가상 스레드(Virtual Thread)를 할당해 타겟 DICOM 서버로 병렬 Zero-Copy 스트리밍 중계합니다.")
+	@PostMapping(value = "/forward-async", consumes = {
+			MediaType.MULTIPART_FORM_DATA_VALUE,
+			"multipart/related",
+			MediaType.APPLICATION_OCTET_STREAM_VALUE,
+			MediaType.ALL_VALUE
+	})
+	ResponseEntity<List<DicomForwardResponse>> forwardDicomFilesAsync(
 			@Parameter(description = "요청 출처 OID", example = "1.2.410.100110.10.99999981") @RequestParam("sourceId") @NotBlank(message = "source id가 없습니다.") String sourceId,
-
-			@Parameter(description = "전송할 DICOM 파일 목록 (.dcm)") @RequestParam("files") @NotEmpty(message = "전송할 파일이 없습니다.") List<MultipartFile> files);
+			@Parameter(description = "전송할 .dat 패키지 파일 목록 (Swagger UI 다중 파일 첨부 가능)") @RequestPart(value = "files", required = false) List<MultipartFile> files,
+			HttpServletRequest request);
 
 	@Operation(summary = "WADO 이미지 조회", description = "UID 값들을 이용해 중계 서버를 거쳐 타겟 서버의 DICOM 데이터를 JPEG 또는 DCM 파일로 조회합니다.")
 	@GetMapping(value = "/wado", produces = {MediaType.IMAGE_JPEG_VALUE, "application/dicom"})

@@ -5,10 +5,10 @@ import java.time.LocalDate;
 
 @Schema(description = "DICOM 데이터 정리(Purge) 요청 바디 정보")
 public record PurgeRequest(
-        @Schema(description = "물리 파일이 저장된 로컬 스토리지 루트 경로", example = "/Users/irm/development/dicom-storage")
+        @Schema(description = "물리 파일이 저장된 로컬 스토리지 루트 경로", example = "/var/app/dicom-storage")
         String storageRoot,
 
-        @Schema(description = "아카이빙 ZIP 파일이 생성 및 저장될 출력 디렉터리 경로", example = "/Users/irm/development/dicom-archive")
+        @Schema(description = "아카이빙 ZIP 파일이 생성 및 저장될 출력 디렉터리 경로", example = "/var/app/dicom-archive")
         String outputDir,
 
         @Schema(description = "퍼지 대상 조회 시작일", example = "2026-06-18")
