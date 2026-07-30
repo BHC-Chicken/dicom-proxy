@@ -20,12 +20,7 @@ spring:
     multipart:
       max-file-size: 2GB
       max-request-size: 5GB
-  datasource-mysql:
-    url: "${MYSQL_DATASOURCE_URL:jdbc:mysql://localhost:3306/dicom}"
-    username: "${MYSQL_DATASOURCE_USERNAME:root}"
-    password: "${MYSQL_DATASOURCE_PASSWORD:root}"
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  datasource-postgresql:
+  datasource:
     url: "${POSTGRESQL_DATASOURCE_URL:jdbc:postgresql://localhost:5432/dicom}"
     username: "${POSTGRESQL_DATASOURCE_USERNAME:postgres}"
     password: "${POSTGRESQL_DATASOURCE_PASSWORD:postgres}"

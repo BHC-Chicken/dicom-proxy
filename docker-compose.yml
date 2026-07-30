@@ -35,12 +35,11 @@ services:
       # Discord 알림 설정
       - DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
 
-      # MySQL (로컬 호스트 디비 접속을 위한 host.docker.internal 맵핑)
-      - MYSQL_DATASOURCE_URL=jdbc:mysql://host.docker.internal:3306/dicom
-      - MYSQL_DATASOURCE_USERNAME=root
-      - MYSQL_DATASOURCE_PASSWORD=your_mysql_password
+      # DICOM Purge 배치 서비스 활성화 (기본값: false, 사용 시 PURGE_ENABLED=true)
+      - PURGE_ENABLED=false
+      - PURGE_MAX_THREADS=5
 
-      # PostgreSQL (로컬 호스트 디비 접속을 위한 host.docker.internal 맵핑)
+      # PostgreSQL 데이터베이스 설정 (필수)
       - POSTGRESQL_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/dicom_db
       - POSTGRESQL_DATASOURCE_USERNAME=postgres
       - POSTGRESQL_DATASOURCE_PASSWORD=your_postgres_password

@@ -90,7 +90,7 @@ public class DicomPurgeExecutor {
 	 * [2단계 - Archive] 대상 인스턴스들을 ZIP 파일로 압축 생성하고 DB 아카이브 이력에 등록합니다.
 	 * DB 호출 및 트랜잭션 롤백, 임시 ZIP 파일 삭제 처리가 하나의 트랜잭션으로 제어됩니다.
 	 */
-	@Transactional("postgresTransactionManager")
+	@Transactional
 	public boolean archiveStudyFiles(Study study, List<Instance> instances, String storageRootStr, String outputDirStr) {
 		String zipFilename = String.format("STD_%s.zip", study.getStudyInstanceUid());
 		Path outputDir = Paths.get(outputDirStr);
@@ -176,7 +176,7 @@ public class DicomPurgeExecutor {
 	/**
 	 * [3단계 - Cleanup] 원본 데이터베이스 레코드를 삭제하고 디스크 삭제 대기열(Purge Queue)에 등록합니다.
 	 */
-	@Transactional("postgresTransactionManager")
+	@Transactional
 	public void cleanupStudy(Integer studyKey) {
 		try {
 			log.info("원본 데이터 삭제 및 Purge Queue 등록 프로시저 호출 (StudyKey: {})", studyKey);
