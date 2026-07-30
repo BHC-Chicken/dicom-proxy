@@ -12,12 +12,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Stream;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
@@ -28,6 +34,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 public class DicomPurgeExecutor {
 
 	private final StudyRepository studyRepository;
+	private final ReentrantLock[] archiveLocks = Stream.generate(ReentrantLock::new)
+			.limit(64)
+			.toArray(ReentrantLock[]::new);
 
 	private enum FileCheckStatus {
 		SUCCESS, SIZE_MISMATCH, NOT_FOUND
@@ -95,26 +104,83 @@ public class DicomPurgeExecutor {
 	 */
 	@Transactional
 	public boolean archiveStudyFiles(Study study, List<Instance> instances, String storageRootStr, String outputDirStr) {
+		String archiveId = study.getStudyInstanceUid();
+		ReentrantLock archiveLock = archiveLocks[Math.floorMod(archiveId.hashCode(), archiveLocks.length)];
+		archiveLock.lock();
+		try {
+			return archiveStudyFilesLocked(study, instances, storageRootStr, outputDirStr);
+		} finally {
+			archiveLock.unlock();
+		}
+	}
+
+	private boolean archiveStudyFilesLocked(Study study, List<Instance> instances, String storageRootStr, String outputDirStr) {
 		String zipFilename = String.format("STD_%s.zip", study.getStudyInstanceUid());
 		Path outputDir = Paths.get(outputDirStr);
 		Path zipFile = outputDir.resolve(zipFilename);
+		Path partFile = null;
 
-		// 1. 임시 ZIP 파일 압축 처리
-		createZipArchive(zipFile, instances, storageRootStr);
+		try {
+			Files.createDirectories(outputDir);
+			if (Files.exists(zipFile)) {
+				throw new DicomErrorException(DicomErrorCode.ZIP_CREATION_FAILED,
+						"기존 아카이브 파일이 존재합니다: " + zipFile.toAbsolutePath());
+			}
 
-		// 2. DB 저장 프로시저 호출
-		registerArchiveInDb(study, zipFile, zipFilename);
+			partFile = Files.createTempFile(outputDir, zipFilename + ".", ".part");
+			createZipArchive(partFile, instances, storageRootStr);
+			verifyZipArchive(partFile, instances.size());
 
-		return true;
+			publishArchiveNoReplace(partFile, zipFile);
+			// The final name is now a hard link to the verified inode. Removing the
+			// temporary name cannot affect the published archive.
+			deleteZipFile(partFile);
+
+			registerArchiveInDb(study, zipFile, zipFilename);
+
+			return true;
+		} catch (DicomErrorException e) {
+			throw e;
+		} catch (IOException e) {
+			log.error("ZIP 아카이브 생성 또는 이동 중 I/O 오류 발생 (ZipFile: {})", zipFile.toAbsolutePath(), e);
+			throw new DicomErrorException(DicomErrorCode.ZIP_CREATION_FAILED, e);
+		} finally {
+			if (partFile != null) {
+				deleteZipFile(partFile);
+			}
+		}
+	}
+
+	/**
+	 * Publishes a verified archive without a check-then-move race. Creating a hard
+	 * link is one atomic namespace operation and fails if {@code zipFile} already
+	 * exists, including when another JVM publishes the same Study concurrently.
+	 * Both paths are created in the same directory by the caller.
+	 */
+	void publishArchiveNoReplace(Path partFile, Path zipFile) {
+		try {
+			Files.createLink(zipFile, partFile);
+		} catch (FileAlreadyExistsException e) {
+			throw new DicomErrorException(DicomErrorCode.ZIP_CREATION_FAILED,
+					"기존 아카이브 파일이 존재합니다: " + zipFile.toAbsolutePath());
+		} catch (UnsupportedOperationException e) {
+			log.error("파일 시스템이 원자적 no-replace 아카이브 publish를 지원하지 않습니다: {}",
+					zipFile.toAbsolutePath(), e);
+			throw new DicomErrorException(DicomErrorCode.ZIP_CREATION_FAILED, e);
+		} catch (IOException e) {
+			log.error("원자적 no-replace 아카이브 publish 실패 (PartFile: {}, ZipFile: {})",
+					partFile.toAbsolutePath(), zipFile.toAbsolutePath(), e);
+			throw new DicomErrorException(DicomErrorCode.ZIP_CREATION_FAILED, e);
+		}
 	}
 
 	/**
 	 * 임시 ZIP 아카이브 압축 파일 생성을 담당하는 헬퍼 메서드
 	 */
-	private void createZipArchive(Path zipFile, List<Instance> instances, String storageRootStr) {
-		log.info("아카이브 ZIP 압축 생성 시작 (파일명: {})", zipFile.getFileName());
+	private void createZipArchive(Path partFile, List<Instance> instances, String storageRootStr) {
+		log.info("아카이브 ZIP 압축 생성 시작 (임시 파일명: {})", partFile.getFileName());
 
-		try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(zipFile))) {
+		try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(partFile))) {
 			Path storageRoot = Paths.get(storageRootStr);
 			int index = 0;
 
@@ -142,10 +208,28 @@ public class DicomPurgeExecutor {
 						index, instances.size(), ins.getDcmInstanceKey(), entryName);
 			}
 		} catch (IOException e) {
-			log.error("ZIP 파일 생성 중 I/O 오류 발생 (ZipFile: {})", zipFile.toAbsolutePath(), e);
-			deleteZipFile(zipFile);
+			log.error("ZIP 파일 생성 중 I/O 오류 발생 (PartFile: {})", partFile.toAbsolutePath(), e);
 
 			throw new DicomErrorException(DicomErrorCode.ZIP_CREATION_FAILED, e);
+		}
+	}
+
+	private void verifyZipArchive(Path partFile, int expectedEntryCount) throws IOException {
+		int actualEntryCount = 0;
+		try (ZipFile zipFile = new ZipFile(partFile.toFile())) {
+			Enumeration<? extends ZipEntry> entries = zipFile.entries();
+			while (entries.hasMoreElements()) {
+				ZipEntry entry = entries.nextElement();
+				try (var inputStream = zipFile.getInputStream(entry)) {
+					inputStream.transferTo(OutputStream.nullOutputStream());
+				}
+				actualEntryCount++;
+			}
+		}
+
+		if (actualEntryCount != expectedEntryCount) {
+			throw new IOException(String.format("ZIP 엔트리 수 불일치 (expected=%d, actual=%d)",
+					expectedEntryCount, actualEntryCount));
 		}
 	}
 
@@ -169,8 +253,8 @@ public class DicomPurgeExecutor {
 		} catch (DicomErrorException e) {
 			throw e;
 		} catch (Exception e) {
-			log.error("아카이브 등록 중 오류 발생, 생성된 ZIP 제거 및 롤백 진행", e);
-			deleteZipFile(zipFile);
+			log.error("아카이브 등록 결과를 확정할 수 없어 ZIP을 reconciliation 대상으로 보존합니다: {}",
+					zipFile.toAbsolutePath(), e);
 
 			throw new DicomErrorException(DicomErrorCode.DB_ARCHIVE_FAILED, e);
 		}

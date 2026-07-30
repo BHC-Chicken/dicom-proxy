@@ -2,11 +2,14 @@ package dev.ioexception.dicom.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
+@EnableAsync
 public class AsyncConfig {
 
 	@Bean(name = "taskExecutor")
@@ -28,6 +31,9 @@ public class AsyncConfig {
 		executor.setMaxPoolSize(5);
 		executor.setQueueCapacity(50);
 		executor.setThreadNamePrefix("Discord-");
+		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
+		executor.setWaitForTasksToCompleteOnShutdown(true);
+		executor.setAwaitTerminationSeconds(5);
 		executor.initialize();
 
 		return executor;

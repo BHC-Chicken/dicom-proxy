@@ -23,22 +23,6 @@ public interface DicomDcmClient {
             @RequestBody MultiValueMap<String, Object> body
     );
 
-    @GetExchange(value = "/wado")
-    byte[] getWadoImage(
-            @RequestParam("requestType") String requestType,
-            @RequestParam("studyUID") String studyUID,
-            @RequestParam("seriesUID") String seriesUID,
-            @RequestParam("objectUID") String objectUID,
-            @RequestParam("contentType") String contentType,
-            @RequestParam(value = "SourceID", required = false) String sourceId
-    );
-
-    @GetExchange(value = "/studies/{StudyInstanceUID}/zip", accept = "application/zip")
-    byte[] downloadStudyZip(
-            @PathVariable("StudyInstanceUID") String studyInstanceUid,
-            @RequestParam("PatientID") String patientId
-    );
-
     @GetExchange(value = "/studies/{StudyInstanceUID}/kos/{KOSInstanceUID}")
     void createDicomManifestKOS(
             @PathVariable("StudyInstanceUID") String studyInstanceUid,

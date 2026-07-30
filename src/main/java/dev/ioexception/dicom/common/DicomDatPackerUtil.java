@@ -66,7 +66,7 @@ public class DicomDatPackerUtil {
     }
 
     /**
-     * DICOM 파일 목록을 Zero-Copy 스트리밍이 가능한 단일 InputStream으로 결합합니다.
+     * DICOM 파일 목록을 전체 byte[] 버퍼링 없이 읽을 수 있는 단일 InputStream으로 결합합니다.
      */
     public static InputStream packDicomFilesToDatStream(List<File> dicomFiles, String boundary) throws IOException {
         if (boundary == null || boundary.isBlank()) {

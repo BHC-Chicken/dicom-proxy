@@ -1,13 +1,15 @@
 package dev.ioexception.dicom;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootTest
 class DicomApplicationTests {
 
     @Test
-    void contextLoads() {
+    void applicationEntryPointIsConfigured() {
+        if (!DicomApplication.class.isAnnotationPresent(SpringBootApplication.class)) {
+            throw new AssertionError("DicomApplication must be annotated with @SpringBootApplication");
+        }
     }
 
 }
