@@ -23,12 +23,15 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
+
 @Slf4j
 @Validated
 @RestController
 @RequiredArgsConstructor
 public class DicomController implements DicomApiDocs {
-    private final DicomPurgeService dicomPurgeService;
+    private final ObjectProvider<DicomPurgeService> dicomPurgeServiceProvider;
     private final DicomWebService dicomWebService;
 
     @Override
@@ -105,6 +108,10 @@ public class DicomController implements DicomApiDocs {
 
     @Override
     public ResponseEntity<PurgeSummaryInfoResponse> purgeDicom(@RequestBody PurgeRequest purgeRequest) {
+        DicomPurgeService dicomPurgeService = dicomPurgeServiceProvider.getIfAvailable();
+        if (dicomPurgeService == null) {
+            throw new IllegalStateException("Purge 기능이 비활성화되어 있습니다. (dicom.purge.enabled=true 필요)");
+        }
         PurgeSummaryInfoResponse response = dicomPurgeService.executePurgeProcess(purgeRequest);
 
         return ResponseEntity.ok(response);

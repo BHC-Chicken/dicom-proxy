@@ -12,6 +12,7 @@ import dev.ioexception.dicom.repository.postgresql.InstanceRepository;
 import dev.ioexception.dicom.repository.postgresql.StudyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -23,34 +24,51 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+
 @Slf4j
 @Service
-@RequiredArgsConstructor
+@ConditionalOnProperty(name = "dicom.purge.enabled", havingValue = "true", matchIfMissing = false)
 public class DicomPurgeService {
 	private final StudyRepository studyRepository;
 	private final InstanceRepository instanceRepository;
 	private final DicomPurgeExecutor dicomPurgeExecutor;
 	private final ApplicationEventPublisher eventPublisher;
 
-	// 싱글톤 빈 단위 전역 동시 실행 한도 제어 (애플리케이션 전역에서 최대 5개 작업만 DB 커넥션 점유 허용)
-	private final Semaphore semaphore = new Semaphore(5);
+	// 동시 실행 한도 제어 (애플리케이션 전역 Semaphore)
+	private final Semaphore semaphore;
+	private final int maxPurgePermits;
+
+	public DicomPurgeService(
+			StudyRepository studyRepository,
+			InstanceRepository instanceRepository,
+			DicomPurgeExecutor dicomPurgeExecutor,
+			ApplicationEventPublisher eventPublisher,
+			@Value("${dicom.purge.max-threads:${PURGE_MAX_THREADS:5}}") int maxPurgePermits) {
+		this.studyRepository = studyRepository;
+		this.instanceRepository = instanceRepository;
+		this.dicomPurgeExecutor = dicomPurgeExecutor;
+		this.eventPublisher = eventPublisher;
+		this.maxPurgePermits = maxPurgePermits;
+		this.semaphore = new Semaphore(maxPurgePermits);
+	}
 
 	private record PurgeResult(boolean isSuccess, Integer studyKey) {
 	}
 
 	/**
 	 * 지정된 조건(기간, 옵션)에 따라 DICOM 퍼지 배치 프로세스를 Orchestrate합니다.
-	 * Java 가상 스레드와 전역 Semaphore를 활용하여 최대 5개 작업을 동시에 병렬 처리합니다.
+	 * Java 가상 스레드와 전역 Semaphore를 활용하여 지정된 개수만큼 동시 병렬 처리합니다.
 	 */
 	public PurgeSummaryInfoResponse executePurgeProcess(PurgeRequest request) {
 		List<Study> studyList = getStudyListForPurge(request);
-		log.info("총 {} 건의 검사(Study) 데이터를 비동기 병렬 처리합니다. (동시 처리 제한: 5개)", studyList.size());
+		log.info("총 {} 건의 검사(Study) 데이터를 비동기 병렬 처리합니다. (동시 처리 제한: {}개)", studyList.size(), maxPurgePermits);
 
 		// 가상 스레드 풀을 이용하여 개별 Study 별로 퍼지 프로세스 조율
 		try (ExecutorService virtualExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
 			List<CompletableFuture<PurgeResult>> futures = studyList.stream()
-					.map(study -> CompletableFuture.supplyAsync(() -> 
-							purgeSingleStudy(study, request), virtualExecutor))
+					.map(study -> CompletableFuture.supplyAsync(() -> purgeSingleStudy(study, request),
+							virtualExecutor))
 					.toList();
 
 			// 모든 비동기 작업이 끝날 때까지 동기 대기 및 결과 취합
@@ -139,7 +157,8 @@ public class DicomPurgeService {
 		// [2단계] ZIP 아카이브 압축 파일 생성 및 DB 등록 (Archive)
 		boolean archiveSuccess = true;
 		if (request.archive() && instances != null) {
-			archiveSuccess = dicomPurgeExecutor.archiveStudyFiles(study, instances, request.storageRoot(), request.outputDir());
+			archiveSuccess = dicomPurgeExecutor.archiveStudyFiles(study, instances, request.storageRoot(),
+					request.outputDir());
 		}
 
 		// [3단계] 원본 데이터 삭제 및 퍼지 큐 등록 (Cleanup)

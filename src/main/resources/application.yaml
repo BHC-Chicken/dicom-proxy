@@ -45,6 +45,7 @@ discord:
 dicom:
   max-concurrency: "${MAX_DICOM_REQUEST:10}"
   purge:
+    enabled: "${PURGE_ENABLED:false}"
     max-threads: "${PURGE_MAX_THREADS:5}"
   scp:
     enabled: "${DICOM_SCP_ENABLED:true}"

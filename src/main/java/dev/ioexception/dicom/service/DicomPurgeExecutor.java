@@ -19,9 +19,12 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "dicom.purge.enabled", havingValue = "true", matchIfMissing = false)
 public class DicomPurgeExecutor {
 
 	private final StudyRepository studyRepository;
