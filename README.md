@@ -19,17 +19,17 @@ $$\text{POST } \mathtt{/target-pacs-service/dcm/studies/}\mathbf{\{StudyInstance
 
 ### 1. ⚡ Near Zero-Copy 소켓 파이프라인 스트리밍
 - `Spring RestClient` + `JdkClientHttpRequestFactory` 기반으로 구현되어, 전송 데이터를 메모리 `byte[]` 배열에 버퍼링하지 않고 **수신 소켓 ➔ 타겟 소켓으로 직접 파이프 스트리밍(`transferTo`)** 합니다.
-> 📌 **Near Zero-Copy (준-Zero-Copy) 특성**: STOW-RS URL 구성을 위해 첫 번째 인스턴스(Part 1)의 메타데이터 파싱 용량만 메모리에 일시 캡처되며, 뒤따르는 수백~수천 개의 인스턴스(Part 2~N) 및 전체 픽셀 본문 스트림은 메모리 버퍼링 0%의 소켓 파이프라인으로 직접 전달되는 **Near Zero-Copy** 메커니즘을 가집니다.
+> 📌 **Near Zero-Copy**: STOW-RS URL 구성을 위해 첫 번째 인스턴스(Part 1)의 메타데이터 파싱 용량만 메모리에 일시 캡처되며, 뒤따르는 인스턴스 및 전체 픽셀 본문 스트림은 메모리 버퍼링 0%의 소켓 파이프라인으로 직접 전달되는 **Near Zero-Copy** 메커니즘을 가집니다.
 
 ### 2. 🔍 Header Peek & Early Exit 스캔
 - `RecordingInputStream`과 `dcm4che3` 파서를 결합하여 1번째 파트의 메타데이터(`StudyInstanceUID`)를 감지하는 즉시 스캔을 강제 종료(`EarlyExitScanException`)합니다.
 
 ### 3. 🔄 100% 무손실 스트림 복원 (`SequenceInputStream`)
-- 단방향(Non-markable) 소켓 스트림에서 이미 읽어버린 헤더 바이트(약 0.3MB)를 메모리 버퍼에 기록해 둔 뒤, 아직 읽지 않은 남은 소켓 스트림과 직렬 연결(`SequenceInputStream`)하여 **100% 완전한 무손실 스트림을 재생성**합니다.
+- 단방향(Non-markable) 소켓 스트림에서 이미 읽어버린 헤더 바이트를 메모리 버퍼에 기록해 둔 뒤, 아직 읽지 않은 남은 소켓 스트림과 직렬 연결(`SequenceInputStream`)하여 **100% 완전한 무손실 스트림을 재생성**합니다.
 
 ### 4. 🛡️ 가상 스레드 & 동시성 가버너 (Semaphore Governor)
 - **Virtual Threads**를 활용하여 다중 파일 요청을 스레드 생성 비용 없이 병열 처리합니다.
-- `Semaphore` 기반 동시성 가버너(Max 10 Permits)를 적용하여 타겟 PACS 서버로의 동시 접속 폭주를 제어합니다.
+- `Semaphore` 기반 동시성 가버너를 적용하여 타겟 서버로의 동시 접속 폭주를 제어합니다.
 
 ---
 
@@ -127,13 +127,14 @@ files: [study_1.2.410.xxxxxx.dat, study_1.2.410.yyyyyy.dat]
   }
 ]
 ```
+응답 예시의 경우 타겟서버마다 다를 수 있습니다.
 
 ---
 
 ## ⚙️ 실행 및 배포 환경 설정
 
 ### 1. Prerequisites
-- Java 21 이상 (Java 25 추천)
+- Java 25 LTS
 - Gradle 8.x / 9.x
 
 ### 2. 🔧 실제 구동 시 필수 환경변수 변경 가이드
