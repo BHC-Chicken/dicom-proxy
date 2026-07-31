@@ -49,6 +49,9 @@ public class DicomPurgeService {
 		this.instanceRepository = instanceRepository;
 		this.dicomPurgeExecutor = dicomPurgeExecutor;
 		this.eventPublisher = eventPublisher;
+		if (maxPurgePermits < 1) {
+			throw new IllegalArgumentException("dicom.purge.max-threads must be at least 1");
+		}
 		this.maxPurgePermits = maxPurgePermits;
 		this.semaphore = new Semaphore(maxPurgePermits);
 	}
@@ -108,13 +111,17 @@ public class DicomPurgeService {
 
 		try {
 			semaphore.acquire();
-			log.info("검사 퍼지 처리 시작 [StudyKey: {}, StudyUID: {}]", studyKey, study.getStudyInstanceUid());
+			try {
+				log.info("검사 퍼지 처리 시작 [StudyKey: {}, StudyUID: {}]", studyKey, study.getStudyInstanceUid());
 
-			processPurgeSteps(study, request);
+				processPurgeSteps(study, request);
 
-			log.info("검사 퍼지 처리 성공 [StudyKey: {}]", studyKey);
+				log.info("검사 퍼지 처리 성공 [StudyKey: {}]", studyKey);
 
-			return new PurgeResult(true, studyKey);
+				return new PurgeResult(true, studyKey);
+			} finally {
+				semaphore.release();
+			}
 		} catch (InterruptedException e) {
 			log.error("검사 퍼지 중 대기 인터럽트 발생 [StudyKey: {}]", studyKey, e);
 			Thread.currentThread().interrupt();
@@ -133,8 +140,6 @@ public class DicomPurgeService {
 			eventPublisher.publishEvent(new DicomErrorEvent(e, traceId));
 
 			return new PurgeResult(false, studyKey);
-		} finally {
-			semaphore.release();
 		}
 	}
 

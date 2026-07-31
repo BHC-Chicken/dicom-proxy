@@ -4,6 +4,7 @@ import dev.ioexception.dicom.controller.swagger.DicomApiDocs;
 import dev.ioexception.dicom.dto.MetadataFormat;
 import dev.ioexception.dicom.dto.request.PurgeRequest;
 import dev.ioexception.dicom.dto.response.DicomForwardResponse;
+import dev.ioexception.dicom.dto.response.DicomStreamResponse;
 import dev.ioexception.dicom.dto.response.PurgeSummaryInfoResponse;
 import dev.ioexception.dicom.service.DicomPurgeService;
 import dev.ioexception.dicom.service.DicomWebService;
@@ -20,10 +21,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 
 @Slf4j
@@ -46,33 +47,41 @@ public class DicomController implements DicomApiDocs {
     }
 
     @Override
-    public ResponseEntity<byte[]> getWadoImage(
+    public ResponseEntity<StreamingResponseBody> getWadoImage(
             @RequestParam("studyUID") String studyUID,
             @RequestParam("seriesUID") String seriesUID,
             @RequestParam("objectUID") String objectUID,
             @RequestParam(value = "sourceId", required = false) String sourceId,
             @RequestParam(value = "contentType", defaultValue = "image/jpeg") String contentType) {
 
-        byte[] imageBytes = dicomWebService.getWadoImage(studyUID, seriesUID, objectUID, sourceId, contentType);
+        DicomStreamResponse streamResponse = dicomWebService.getWadoImage(
+                studyUID, seriesUID, objectUID, sourceId, contentType);
         boolean isDicom = "application/dicom".equalsIgnoreCase(contentType);
 
-        return ResponseEntity.ok()
-                .contentType(isDicom ? MediaType.parseMediaType("application/dicom") : MediaType.IMAGE_JPEG)
-                .header(HttpHeaders.CONTENT_DISPOSITION, isDicom ? "attachment; filename=\"" + objectUID + ".dcm\"" : "inline")
-                .body(imageBytes);
+        ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.status(streamResponse.statusCode())
+                .contentType(streamResponse.contentType())
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        isDicom ? "attachment; filename=\"" + objectUID + ".dcm\"" : "inline");
+        if (streamResponse.contentLength() >= 0) {
+            responseBuilder.contentLength(streamResponse.contentLength());
+        }
+        return responseBuilder.body(streamResponse.streamingBody());
     }
 
     @Override
-    public ResponseEntity<byte[]> downloadStudyZip(
+    public ResponseEntity<StreamingResponseBody> downloadStudyZip(
             @PathVariable String studyUID,
             @RequestParam("patientId") String patientId) {
 
-        byte[] zipBytes = dicomWebService.downloadStudyZip(studyUID, patientId);
+        DicomStreamResponse streamResponse = dicomWebService.downloadStudyZip(studyUID, patientId);
 
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("application/zip"))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"study_" + studyUID + ".zip\"")
-                .body(zipBytes);
+        ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.status(streamResponse.statusCode())
+                .contentType(streamResponse.contentType())
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"study_" + studyUID + ".zip\"");
+        if (streamResponse.contentLength() >= 0) {
+            responseBuilder.contentLength(streamResponse.contentLength());
+        }
+        return responseBuilder.body(streamResponse.streamingBody());
     }
 
     @Override

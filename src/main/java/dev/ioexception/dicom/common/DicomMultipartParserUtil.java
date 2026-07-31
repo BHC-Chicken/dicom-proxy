@@ -1,6 +1,6 @@
 package dev.ioexception.dicom.common;
 
-import dev.ioexception.dicom.dto.RecordedStream;
+import dev.ioexception.dicom.dto.ValidatedDicomPayload;
 import dev.ioexception.dicom.dto.response.DicomUidResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.dcm4che3.data.Attributes;
@@ -11,21 +11,24 @@ import org.dcm4che3.mime.MultipartParser;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.SequenceInputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
-public class DicomMultipartParserUtil {
+public final class DicomMultipartParserUtil {
 
-    private static class EarlyExitScanException extends RuntimeException {
+    private static final int MAX_BOUNDARY_LINE_BYTES = 512;
+    private static final int MAX_PREAMBLE_BYTES = 8 * 1024;
+    private static final int MAX_MIME_HEADER_BYTES = 64 * 1024;
+
+    private DicomMultipartParserUtil() {
     }
 
     public static String extractBoundary(String contentType) {
@@ -36,7 +39,7 @@ public class DicomMultipartParserUtil {
         String[] tokens = contentType.split(";");
         for (String token : tokens) {
             token = token.trim();
-            if (token.toLowerCase().startsWith("boundary=")) {
+            if (token.toLowerCase(Locale.ROOT).startsWith("boundary=")) {
                 String boundary = token.substring(9).trim();
                 if (boundary.startsWith("\"") && boundary.endsWith("\"") && boundary.length() >= 2) {
                     boundary = boundary.substring(1, boundary.length() - 1);
@@ -48,124 +51,274 @@ public class DicomMultipartParserUtil {
             }
         }
 
-        log.warn("[DicomMultipartParserUtil] Content-Type 헤더에서 Boundary를 찾을 수 없습니다: {}", contentType);
+        log.warn("[DicomMultipartParserUtil] Content-Type 헤더에서 boundary를 찾을 수 없습니다: {}", contentType);
         return null;
     }
 
-    public static RecordedStream peekHeaderAndRewind(InputStream requestStream, String headerBoundary)
-            throws IOException {
-        RecordingInputStream recordingStream = new RecordingInputStream(requestStream);
+    /**
+     * Validates every DICOM part in a repeatable, file-backed STOW-RS payload.
+     * The spool file is opened read-only and is never copied into heap memory.
+     */
+    public static ValidatedDicomPayload validateSingleStudy(
+            Path spoolFile,
+            String headerBoundary,
+            long maxMetadataBytes) throws IOException {
+        Objects.requireNonNull(spoolFile, "spoolFile");
+        if (!Files.isRegularFile(spoolFile)) {
+            throw new IOException("DICOM spool file does not exist or is not a regular file: " + spoolFile);
+        }
+        if (maxMetadataBytes <= 0) {
+            throw new IllegalArgumentException("maxMetadataBytes must be greater than zero");
+        }
 
-        ByteArrayOutputStream firstLineBuffer = new ByteArrayOutputStream();
-        String detectedBoundary = readFirstLineAndDetectBoundary(recordingStream, firstLineBuffer, headerBoundary);
-        validateBoundary(detectedBoundary);
+        String detectedBoundary = detectBoundary(spoolFile, headerBoundary);
+        if (headerBoundary != null && !headerBoundary.isBlank() && !headerBoundary.equals(detectedBoundary)) {
+            log.warn("[DICOM Validation] Header boundary와 payload boundary가 다릅니다. payload 값을 사용합니다. header={}, payload={}",
+                    headerBoundary, detectedBoundary);
+        }
 
-        log.info("[Header Peek] DICOM 메타데이터 Early Exit 스캔 시작 (Boundary: {})", detectedBoundary);
+        ValidationState state = new ValidationState();
+        try (InputStream input = Files.newInputStream(spoolFile)) {
+            new MultipartParser(detectedBoundary).parse(input,
+                    (partNumber, partStream) -> validatePart(partNumber, partStream, maxMetadataBytes, state));
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (IOException e) {
+            throw badRequest("Malformed multipart DICOM payload: " + usefulMessage(e), e);
+        } catch (RuntimeException e) {
+            throw badRequest("Malformed multipart DICOM payload: " + usefulMessage(e), e);
+        }
 
-        InputStream parserInput = new SequenceInputStream(
-                new ByteArrayInputStream(firstLineBuffer.toByteArray()),
-                recordingStream);
+        if (state.partCount == 0 || state.representativeUid.get() == null) {
+            throw badRequest("Multipart payload does not contain a DICOM part");
+        }
 
-        List<DicomUidResponse> uidsList = scanAllPartHeaders(parserInput, detectedBoundary);
-
-        log.info("[Header Peek] Early Exit 성공 완료 - 대표 StudyUID 감지됨 ({}), 캡처된 헤더 크기: {} bytes, 스트림 복원(Rewind) 수행",
-                uidsList.getFirst().studyUid(), recordingStream.getRecordedSize());
-        return new RecordedStream(uidsList, recordingStream.toRecombinedStream(), detectedBoundary);
+        return new ValidatedDicomPayload(state.representativeUid.get(), detectedBoundary, state.partCount);
     }
 
-    private static String readFirstLineAndDetectBoundary(RecordingInputStream recordingStream,
-            ByteArrayOutputStream firstLineBuffer, String headerBoundary) {
+    private static void validatePart(
+            int partNumber,
+            MultipartInputStream partStream,
+            long maxMetadataBytes,
+            ValidationState state) throws IOException {
         try {
-            int b;
-            while ((b = recordingStream.read()) != -1) {
-                firstLineBuffer.write(b);
-                if (b == '\n' || firstLineBuffer.size() >= 512) {
+            skipMimeHeaders(partNumber, partStream);
+            DicomUidResponse uid = readUids(partNumber, partStream, maxMetadataBytes);
+            DicomUidResponse representative = state.representativeUid.get();
+            if (representative == null) {
+                state.representativeUid.set(uid);
+            } else if (!representative.studyUid().equals(uid.studyUid())) {
+                throw badRequest("Multipart payload contains multiple StudyInstanceUID values: "
+                        + representative.studyUid() + " and " + uid.studyUid());
+            }
+            state.partCount++;
+        } finally {
+            // The DICOM scan deliberately stops before Pixel Data. Consume only to the
+            // MIME boundary so MultipartParser can visit and validate every part.
+            partStream.skipAll();
+        }
+    }
+
+    private static void skipMimeHeaders(int partNumber, InputStream input) throws IOException {
+        int consumed = 0;
+        int previous = -1;
+        int previousPrevious = -1;
+        while (consumed < MAX_MIME_HEADER_BYTES) {
+            int current = input.read();
+            if (current == -1) {
+                throw badRequest("Multipart part " + partNumber + " MIME headers are incomplete");
+            }
+            consumed++;
+            if ((previousPrevious == '\r' && previous == '\n' && current == '\r')) {
+                int next = input.read();
+                if (next == -1) {
+                    throw badRequest("Multipart part " + partNumber + " MIME headers are incomplete");
+                }
+                consumed++;
+                if (next == '\n') {
+                    return;
+                }
+                previousPrevious = previous;
+                previous = next;
+                continue;
+            }
+            if (previous == '\n' && current == '\n') {
+                return;
+            }
+            previousPrevious = previous;
+            previous = current;
+        }
+        throw badRequest("Multipart part " + partNumber + " MIME headers exceed "
+                + MAX_MIME_HEADER_BYTES + " bytes");
+    }
+
+    private static DicomUidResponse readUids(
+            int partNumber,
+            InputStream partStream,
+            long maxMetadataBytes) {
+        MetadataLimitInputStream limited = new MetadataLimitInputStream(partStream, maxMetadataBytes);
+        try {
+            DicomInputStream dicomInput = new DicomInputStream(limited);
+            dicomInput.setIncludeBulkData(DicomInputStream.IncludeBulkData.NO);
+            dicomInput.setAllocateLimit((int) Math.min(Integer.MAX_VALUE, maxMetadataBytes));
+
+            Attributes attributes = new Attributes();
+            dicomInput.readFileMetaInformation();
+            dicomInput.readAttributes(attributes, -1, input ->
+                    input.tag() == Tag.PixelData || hasAllRequestedUids(attributes));
+
+            String studyUid = trimToNull(attributes.getString(Tag.StudyInstanceUID));
+            if (studyUid == null) {
+                throw badRequest("DICOM part " + partNumber + " does not contain StudyInstanceUID");
+            }
+
+            return new DicomUidResponse(
+                    studyUid,
+                    trimToNull(attributes.getString(Tag.SeriesInstanceUID)),
+                    trimToNull(attributes.getString(Tag.SOPInstanceUID)));
+        } catch (MetadataLimitExceededException e) {
+            throw badRequest("DICOM part " + partNumber + " metadata exceeds scan limit of "
+                    + maxMetadataBytes + " bytes", e);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw badRequest("DICOM part " + partNumber + " is malformed: " + usefulMessage(e), e);
+        }
+    }
+
+    private static boolean hasAllRequestedUids(Attributes attributes) {
+        return trimToNull(attributes.getString(Tag.StudyInstanceUID)) != null
+                && trimToNull(attributes.getString(Tag.SeriesInstanceUID)) != null
+                && trimToNull(attributes.getString(Tag.SOPInstanceUID)) != null;
+    }
+
+    private static String detectBoundary(Path spoolFile, String headerBoundary) throws IOException {
+        int total = 0;
+        String firstPayloadBoundary = null;
+        try (InputStream input = Files.newInputStream(spoolFile)) {
+            while (total < MAX_PREAMBLE_BYTES) {
+                byte[] line = new byte[MAX_BOUNDARY_LINE_BYTES];
+                int length = 0;
+                boolean terminated = false;
+                int value;
+                while (length < line.length && total < MAX_PREAMBLE_BYTES && (value = input.read()) != -1) {
+                    total++;
+                    if (value == '\n') {
+                        terminated = true;
+                        break;
+                    }
+                    line[length++] = (byte) value;
+                }
+                if (!terminated) {
                     break;
                 }
-            }
-            String firstLine = firstLineBuffer.toString(StandardCharsets.UTF_8).trim();
-            if (firstLine.startsWith("--")) {
-                String boundaryCandidate = firstLine.substring(2).trim();
-                if (boundaryCandidate.endsWith("--")) {
-                    boundaryCandidate = boundaryCandidate.substring(0, boundaryCandidate.length() - 2);
+                String candidateLine = new String(line, 0, length, StandardCharsets.US_ASCII).trim();
+                if (!candidateLine.startsWith("--") || candidateLine.length() <= 2) {
+                    continue;
                 }
-                if (!boundaryCandidate.isBlank()) {
-                    log.info("[DicomMultipartParserUtil] 스트림 첫 라인에서 Boundary 자동 감지 성공: {}", boundaryCandidate);
-                    return boundaryCandidate;
+                String boundary = candidateLine.substring(2);
+                if (boundary.isBlank()) {
+                    throw badRequest("Malformed multipart payload: boundary is empty");
+                }
+                boolean closingBoundary = boundary.endsWith("--");
+                String normalizedBoundary = closingBoundary
+                        ? boundary.substring(0, boundary.length() - 2)
+                        : boundary;
+                if (headerBoundary != null && headerBoundary.equals(normalizedBoundary)) {
+                    if (closingBoundary) {
+                        throw badRequest("Multipart payload does not contain a DICOM part");
+                    }
+                    return normalizedBoundary;
+                }
+                if (!closingBoundary && firstPayloadBoundary == null) {
+                    firstPayloadBoundary = normalizedBoundary;
                 }
             }
-        } catch (Exception e) {
-            log.debug("[DicomMultipartParserUtil] 첫 라인 Boundary 자동 감지 시도 실패: {}", e.getMessage());
         }
-
-        if (headerBoundary != null && !headerBoundary.isBlank()) {
-            return headerBoundary;
+        if (firstPayloadBoundary != null) {
+            return firstPayloadBoundary;
         }
-
-        return DicomDatPackerUtil.DEFAULT_BOUNDARY;
+        throw badRequest("Malformed multipart payload: boundary line is missing or exceeds preamble limit");
     }
 
-    private static void validateBoundary(String boundary) {
-        if (boundary == null || boundary.isBlank()) {
-            throw new IllegalArgumentException("Boundary 정보가 Content-Type 헤더에 존재하지 않습니다.");
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
         }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private static List<DicomUidResponse> scanAllPartHeaders(InputStream recordingStream, String boundary) {
-        Map<String, DicomUidResponse> studyMap = new LinkedHashMap<>();
-
-        try {
-            new MultipartParser(boundary).parse(recordingStream, (partNumber, multipartInputStream) -> {
-                extractUidFromPart(partNumber, multipartInputStream, studyMap);
-                if (!studyMap.isEmpty()) {
-                    throw new EarlyExitScanException();
-                }
-            });
-        } catch (EarlyExitScanException e) {
-            log.info("[Header Peek] Early Exit 실행: 첫 번째 대표 Study 헤더 감지 즉시 스캔 종료");
-        } catch (Exception e) {
-            log.debug("[Header Peek] 헤더 스캔 완료 또는 종료: {}", e.getMessage());
-        }
-
-        if (studyMap.isEmpty()) {
-            log.error("[Header Peek] DICOM 메타데이터 (StudyInstanceUID) 추출 실패");
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "DICOM 메타데이터 (StudyInstanceUID)를 찾을 수 없습니다.");
-        }
-
-        return new ArrayList<>(studyMap.values());
+    private static String usefulMessage(Throwable throwable) {
+        return throwable.getMessage() == null || throwable.getMessage().isBlank()
+                ? throwable.getClass().getSimpleName()
+                : throwable.getMessage();
     }
 
-    private static void extractUidFromPart(int partNumber, InputStream inputStream, Map<String, DicomUidResponse> studyMap) {
-        try {
-            if (inputStream instanceof MultipartInputStream mis) {
-                mis.readHeaderParams();
+    private static ResponseStatusException badRequest(String reason) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, reason);
+    }
+
+    private static ResponseStatusException badRequest(String reason, Throwable cause) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, reason, cause);
+    }
+
+    private static final class ValidationState {
+        private final AtomicReference<DicomUidResponse> representativeUid = new AtomicReference<>();
+        private int partCount;
+    }
+
+    private static final class MetadataLimitInputStream extends FilterInputStream {
+        private final long limit;
+        private long consumed;
+
+        private MetadataLimitInputStream(InputStream input, long limit) {
+            super(input);
+            this.limit = limit;
+        }
+
+        @Override
+        public int read() throws IOException {
+            ensureAvailable(1);
+            int value = super.read();
+            if (value != -1) {
+                consumed++;
             }
-            try (DicomInputStream dis = new DicomInputStream(inputStream)) {
-                dis.setIncludeBulkData(DicomInputStream.IncludeBulkData.NO);
-                Attributes attrs = dis.readDataset();
-                parseAndSetUid(partNumber, attrs, studyMap);
+            return value;
+        }
+
+        @Override
+        public int read(byte[] bytes, int offset, int length) throws IOException {
+            if (length == 0) {
+                return 0;
             }
-        } catch (Exception e) {
-            log.warn("[Header Peek] Part {} 파싱 중 경고: {}", partNumber, e.getMessage());
+            ensureAvailable(1);
+            int allowed = (int) Math.min(length, limit - consumed);
+            int count = super.read(bytes, offset, allowed);
+            if (count > 0) {
+                consumed += count;
+            }
+            return count;
+        }
+
+        @Override
+        public long skip(long count) throws IOException {
+            if (count <= 0) {
+                return 0;
+            }
+            ensureAvailable(1);
+            long skipped = super.skip(Math.min(count, limit - consumed));
+            consumed += skipped;
+            return skipped;
+        }
+
+        private void ensureAvailable(long requested) throws MetadataLimitExceededException {
+            if (requested > 0 && consumed >= limit) {
+                throw new MetadataLimitExceededException();
+            }
         }
     }
 
-    private static void parseAndSetUid(int partNumber, Attributes attrs, Map<String, DicomUidResponse> studyMap) {
-        if (attrs == null) {
-            return;
-        }
-
-        String studyUid = attrs.getString(Tag.StudyInstanceUID);
-        String seriesUid = attrs.getString(Tag.SeriesInstanceUID);
-        String sopInstanceUid = attrs.getString(Tag.SOPInstanceUID);
-
-        if (studyUid != null && !studyUid.isBlank()) {
-            boolean isNewStudy = !studyMap.containsKey(studyUid);
-            studyMap.putIfAbsent(studyUid, new DicomUidResponse(studyUid, seriesUid, sopInstanceUid));
-            if (isNewStudy) {
-                log.info("[Header Peek] 대표 Study 감지 [Part {}] - StudyUID: {}, SeriesUID: {}, SOPInstanceUID: {}",
-                        partNumber, studyUid, seriesUid, sopInstanceUid);
-            }
-        }
+    private static final class MetadataLimitExceededException extends IOException {
     }
 }

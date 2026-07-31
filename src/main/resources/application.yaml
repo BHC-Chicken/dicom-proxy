@@ -44,6 +44,13 @@ discord:
 
 dicom:
   max-concurrency: "${MAX_DICOM_REQUEST:10}"
+  forward:
+    spool-dir: "${DICOM_FORWARD_SPOOL_DIR:${java.io.tmpdir}/dicom-proxy-forward}"
+    max-spool-size: "${DICOM_FORWARD_MAX_SPOOL_SIZE:5GB}"
+    max-metadata-scan-size: "${DICOM_FORWARD_MAX_METADATA_SCAN_SIZE:8MB}"
+    max-stow-response-size: "${DICOM_FORWARD_MAX_STOW_RESPONSE_SIZE:1MB}"
+    max-concurrent-spools: "${DICOM_FORWARD_MAX_CONCURRENT_SPOOLS:2}"
+    stale-spool-retention: "${DICOM_FORWARD_STALE_SPOOL_RETENTION:24h}"
   purge:
     enabled: "${PURGE_ENABLED:false}"
     max-threads: "${PURGE_MAX_THREADS:5}"

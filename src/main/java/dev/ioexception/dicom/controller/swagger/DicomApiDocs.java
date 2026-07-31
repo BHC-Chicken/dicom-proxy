@@ -18,14 +18,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
 
 @RequestMapping("/api/dicom")
-@Tag(name = "DICOM API", description = "DICOM Zero-Copy 프록시 중계 API")
+@Tag(name = "DICOM API", description = "DICOM bounded-memory 스트리밍 프록시 API")
 public interface DicomApiDocs {
 
-	@Operation(summary = "DICOM Zero-Copy 스트리밍 중계 (.dat / STOW-RS)", description = "단일 또는 다중 .dat 패키지 파일(Swagger/Form 다중 선택) 또는 다이렉트 STOW-RS 스트림을 수신하여 각 .dat 파일별로 가상 스레드(Virtual Thread)를 할당해 타겟 DICOM 서버로 병렬 Zero-Copy 스트리밍 중계합니다.")
+	@Operation(summary = "DICOM bounded-memory 스트리밍 중계 (.dat / STOW-RS)", description = "요청을 파일 기반으로 검증해 하나의 Study만 포함하는지 확인한 뒤, 전체 본문을 힙에 적재하지 않고 타겟 DICOM 서버로 전달합니다.")
 	@PostMapping(value = "/forward-async", consumes = {
 			MediaType.MULTIPART_FORM_DATA_VALUE,
 			"multipart/related",
@@ -39,7 +40,7 @@ public interface DicomApiDocs {
 
 	@Operation(summary = "WADO 이미지 조회", description = "UID 값들을 이용해 중계 서버를 거쳐 타겟 서버의 DICOM 데이터를 JPEG 또는 DCM 파일로 조회합니다.")
 	@GetMapping(value = "/wado", produces = {MediaType.IMAGE_JPEG_VALUE, "application/dicom"})
-	ResponseEntity<byte[]> getWadoImage(
+	ResponseEntity<StreamingResponseBody> getWadoImage(
 			@Parameter(description = "Study Instance UID") @RequestParam("studyUID") String studyUID,
 			@Parameter(description = "Series Instance UID") @RequestParam("seriesUID") String seriesUID,
 			@Parameter(description = "SOP Instance UID (Object UID)") @RequestParam("objectUID") String objectUID,
@@ -48,7 +49,7 @@ public interface DicomApiDocs {
 
 	@Operation(summary = "Study 단위 DICOM ZIP 다운로드", description = "특정 Study에 포함된 모든 DICOM 파일들을 하나의 ZIP 파일로 다운로드합니다.")
 	@GetMapping(value = "/studies/{studyUID}/zip", produces = "application/zip")
-	ResponseEntity<byte[]> downloadStudyZip(
+	ResponseEntity<StreamingResponseBody> downloadStudyZip(
 			@PathVariable @Parameter(description = "Study Instance UID") String studyUID,
 			@Parameter(description = "환자 ID (필수)", example = "12345678") @RequestParam("patientId") String patientId);
 

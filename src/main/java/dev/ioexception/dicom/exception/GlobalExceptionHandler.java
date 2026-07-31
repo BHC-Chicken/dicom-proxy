@@ -12,12 +12,20 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.web.server.ResponseStatusException;
 
 @Slf4j
 @RestControllerAdvice
 @RequiredArgsConstructor
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	private final ApplicationEventPublisher eventPublisher;
+
+	@ExceptionHandler(ResponseStatusException.class)
+	public ResponseEntity<ExceptionResponse> handleResponseStatusException(ResponseStatusException e) {
+		String message = e.getReason() != null ? e.getReason() : "요청을 처리할 수 없습니다.";
+		return ResponseEntity.status(e.getStatusCode())
+				.body(new ExceptionResponse(e.getStatusCode().value(), message));
+	}
 
 	@ExceptionHandler(GlobalException.class)
 	public ResponseEntity<ExceptionResponse> handleGlobalException(Exception e, HttpServletRequest request) {

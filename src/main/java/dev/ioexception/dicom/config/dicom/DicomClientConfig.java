@@ -26,15 +26,18 @@ public class DicomClientConfig {
     private String baseURL;
 
     @Bean
-    public RestClient proxyRestClient(SslBundles sslBundles) throws Exception {
+    public HttpClient dicomHttpClient(SslBundles sslBundles) throws Exception {
         SslBundle sslBundle = sslBundles.getBundle("dicom-bundle");
-
         SSLContext sslContext = createSslContext(sslBundle);
-        HttpClient httpClient = createHttpClient(sslContext);
 
+        return createHttpClient(sslContext);
+    }
+
+    @Bean
+    public RestClient proxyRestClient(HttpClient dicomHttpClient) {
         return RestClient.builder()
                 .baseUrl(baseURL)
-                .requestFactory(new JdkClientHttpRequestFactory(httpClient))
+                .requestFactory(new JdkClientHttpRequestFactory(dicomHttpClient))
                 .build();
     }
 

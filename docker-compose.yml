@@ -22,6 +22,12 @@ services:
 
       # 동시성 가버너 (스레드/Semaphore 허가 한도 제어)
       - MAX_DICOM_REQUEST=10
+      - DICOM_FORWARD_SPOOL_DIR=/app/dicom-temp/forward-spool
+      - DICOM_FORWARD_MAX_SPOOL_SIZE=5GB
+      - DICOM_FORWARD_MAX_METADATA_SCAN_SIZE=8MB
+      - DICOM_FORWARD_MAX_STOW_RESPONSE_SIZE=1MB
+      - DICOM_FORWARD_MAX_CONCURRENT_SPOOLS=2
+      - DICOM_FORWARD_STALE_SPOOL_RETENTION=24h
       - PURGE_MAX_THREADS=5
 
       # DICOM SCP 관련 설정
