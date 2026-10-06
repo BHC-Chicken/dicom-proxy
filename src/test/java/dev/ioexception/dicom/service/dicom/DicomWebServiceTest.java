@@ -1,6 +1,6 @@
-package dev.ioexception.dicom.service;
+package dev.ioexception.dicom.service.dicom;
 
-import dev.ioexception.dicom.dto.response.DicomStreamResponse;
+import dev.ioexception.dicom.dto.dicom.response.DicomStreamResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.util.unit.DataSize;

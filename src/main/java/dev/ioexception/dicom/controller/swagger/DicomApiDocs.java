@@ -1,6 +1,6 @@
 package dev.ioexception.dicom.controller.swagger;
 
-import dev.ioexception.dicom.dto.response.DicomForwardResponse;
+import dev.ioexception.dicom.dto.dicom.response.DicomForwardResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

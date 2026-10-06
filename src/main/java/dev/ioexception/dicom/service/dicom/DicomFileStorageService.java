@@ -1,4 +1,4 @@
-package dev.ioexception.dicom.service;
+package dev.ioexception.dicom.service.dicom;
 
 import co.elastic.apm.api.CaptureSpan;
 import lombok.extern.slf4j.Slf4j;

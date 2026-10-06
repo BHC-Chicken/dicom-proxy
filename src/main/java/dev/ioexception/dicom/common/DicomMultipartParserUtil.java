@@ -1,7 +1,7 @@
 package dev.ioexception.dicom.common;
 
 import dev.ioexception.dicom.dto.ValidatedDicomPayload;
-import dev.ioexception.dicom.dto.response.DicomUidResponse;
+import dev.ioexception.dicom.dto.dicom.response.DicomUidResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;

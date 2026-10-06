@@ -1,7 +1,7 @@
 package dev.ioexception.dicom.exception;
 
 import co.elastic.apm.api.ElasticApm;
-import dev.ioexception.dicom.dto.response.ExceptionResponse;
+import dev.ioexception.dicom.dto.dicom.response.ExceptionResponse;
 import dev.ioexception.dicom.event.DicomErrorEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;

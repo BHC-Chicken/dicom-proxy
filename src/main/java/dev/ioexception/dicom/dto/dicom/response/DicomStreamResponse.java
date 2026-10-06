@@ -1,4 +1,4 @@
-package dev.ioexception.dicom.dto.response;
+package dev.ioexception.dicom.dto.dicom.response;
 
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;

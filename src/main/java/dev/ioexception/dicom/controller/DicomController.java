@@ -2,9 +2,9 @@ package dev.ioexception.dicom.controller;
 
 import dev.ioexception.dicom.controller.swagger.DicomApiDocs;
 import dev.ioexception.dicom.dto.MetadataFormat;
-import dev.ioexception.dicom.dto.response.DicomForwardResponse;
-import dev.ioexception.dicom.dto.response.DicomStreamResponse;
-import dev.ioexception.dicom.service.DicomWebService;
+import dev.ioexception.dicom.dto.dicom.response.DicomForwardResponse;
+import dev.ioexception.dicom.dto.dicom.response.DicomStreamResponse;
+import dev.ioexception.dicom.service.dicom.DicomWebService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,4 +1,4 @@
-package dev.ioexception.dicom.service;
+package dev.ioexception.dicom.service.dicom;
 
 import co.elastic.apm.api.CaptureSpan;
 import dev.ioexception.dicom.common.DicomDatPackerUtil;
@@ -7,9 +7,9 @@ import dev.ioexception.dicom.common.DicomXmlParserUtil;
 import dev.ioexception.dicom.config.dicom.DicomDcmClient;
 import dev.ioexception.dicom.dto.MetadataFormat;
 import dev.ioexception.dicom.dto.ValidatedDicomPayload;
-import dev.ioexception.dicom.dto.response.DicomForwardResponse;
-import dev.ioexception.dicom.dto.response.DicomStreamResponse;
-import dev.ioexception.dicom.dto.response.DicomUidResponse;
+import dev.ioexception.dicom.dto.dicom.response.DicomForwardResponse;
+import dev.ioexception.dicom.dto.dicom.response.DicomStreamResponse;
+import dev.ioexception.dicom.dto.dicom.response.DicomUidResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;

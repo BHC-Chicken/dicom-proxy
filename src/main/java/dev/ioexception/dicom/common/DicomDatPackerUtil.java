@@ -3,7 +3,6 @@ package dev.ioexception.dicom.common;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -11,7 +10,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -46,24 +44,7 @@ public class DicomDatPackerUtil {
         log.info("[DicomDatPackerUtil] .dat 파일 생성 완료: {} (크기: {} bytes)", outputDatFile.getName(), outputDatFile.length());
     }
 
-    /**
-     * 바이트 배열 DICOM 파일 목록을 STOW-RS (.dat) 바이트 배열로 생성합니다.
-     */
-    public static byte[] packDicomBytesToDatBytes(List<byte[]> dicomBytesList, String boundary) throws IOException {
-        if (boundary == null || boundary.isBlank()) {
-            boundary = DEFAULT_BOUNDARY;
-        }
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        for (byte[] dicomBytes : dicomBytesList) {
-            writePartHeader(baos, boundary, dicomBytes.length);
-            baos.write(dicomBytes);
-            baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
-        }
-
-        writeClosingBoundary(baos, boundary);
-        return baos.toByteArray();
-    }
 
     /**
      * DICOM 파일 목록을 전체 byte[] 버퍼링 없이 읽을 수 있는 단일 InputStream으로 결합합니다.
@@ -100,20 +81,8 @@ public class DicomDatPackerUtil {
         fos.write(header.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static void writePartHeader(ByteArrayOutputStream baos, String boundary, long contentLength) throws IOException {
-        String header = "--" + boundary + "\r\n" +
-                "Content-Type: application/dicom\r\n" +
-                "Content-Length: " + contentLength + "\r\n\r\n";
-        baos.write(header.getBytes(StandardCharsets.UTF_8));
-    }
-
     private static void writeClosingBoundary(FileOutputStream fos, String boundary) throws IOException {
         String trailer = "--" + boundary + "--\r\n";
         fos.write(trailer.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static void writeClosingBoundary(ByteArrayOutputStream baos, String boundary) throws IOException {
-        String trailer = "--" + boundary + "--\r\n";
-        baos.write(trailer.getBytes(StandardCharsets.UTF_8));
     }
 }

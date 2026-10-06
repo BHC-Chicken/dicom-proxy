@@ -1,6 +1,6 @@
 package dev.ioexception.dicom.exception;
 
-import dev.ioexception.dicom.dto.response.ExceptionResponse;
+import dev.ioexception.dicom.dto.dicom.response.ExceptionResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
