@@ -41,3 +41,8 @@ logs/
 agent/
 
 .DS_Store
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example

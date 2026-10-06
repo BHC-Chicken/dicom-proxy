@@ -26,9 +26,14 @@ spring:
     password: "${POSTGRESQL_DATASOURCE_PASSWORD:postgres}"
     driver-class-name: org.postgresql.Driver
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: none
     show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        highlight_sql: true
     open-in-view: false
   elasticsearch:
     uris: "${SPRING_ELASTICSEARCH_URIS:https://localhost:9200}"
