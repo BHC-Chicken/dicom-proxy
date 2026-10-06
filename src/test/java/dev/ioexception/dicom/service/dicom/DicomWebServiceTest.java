@@ -42,15 +42,18 @@ class DicomWebServiceTest {
         Semaphore semaphore = semaphoreOf(service);
         semaphore.acquire();
 
+        Path dummySpool = tempDir.resolve("dummy.part");
+        java.nio.file.Files.write(dummySpool, new byte[0]);
+
         Method method = DicomWebService.class.getDeclaredMethod(
-                "forwardStreamWithSemaphore", InputStream.class, long.class,
+                "forwardStreamWithRetry", Path.class, long.class,
                 String.class, String.class, String.class);
         method.setAccessible(true);
         AtomicReference<Throwable> failure = new AtomicReference<>();
         Thread interrupted = Thread.ofVirtual().start(() -> {
             Thread.currentThread().interrupt();
             try {
-                method.invoke(service, new ByteArrayInputStream(new byte[0]), 0L,
+                method.invoke(service, dummySpool, 0L,
                         "multipart/related; boundary=test", "1.2.3", "source");
             } catch (InvocationTargetException e) {
                 failure.set(e.getCause());
@@ -104,11 +107,66 @@ class DicomWebServiceTest {
                 .hasCauseInstanceOf(IOException.class);
     }
 
+    @Test
+    void transferWithBufferCopiesEntireStream() throws Exception {
+        DicomWebService service = serviceWithHttpClient(mock(HttpClient.class));
+        Method method = DicomWebService.class.getDeclaredMethod(
+                "transferWithBuffer", InputStream.class, java.io.OutputStream.class, int.class);
+        method.setAccessible(true);
+
+        byte[] sourceData = new byte[256 * 1024]; // 256KB
+        for (int i = 0; i < sourceData.length; i++) {
+            sourceData[i] = (byte) (i % 128);
+        }
+
+        ByteArrayInputStream input = new ByteArrayInputStream(sourceData);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        method.invoke(service, input, output, 128 * 1024);
+
+        assertThat(output.toByteArray()).isEqualTo(sourceData);
+    }
+
+    @Test
+    void insufficientDiskSpaceRejectsWithServiceUnavailable() {
+        // 최소 여유 공간을 10,000 테라바이트(10PB)로 설정하여 디스크 부족 상황 시뮬레이션
+        DicomWebService service = serviceWithHttpClient(
+                mock(HttpClient.class), DataSize.ofMegabytes(1), DataSize.ofTerabytes(10000));
+
+        org.springframework.mock.web.MockMultipartFile file =
+                new org.springframework.mock.web.MockMultipartFile(
+                        "files", "test.dat", "application/octet-stream", "data".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> service.prepareSpoolFile(file))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("서버 디스크 여유 공간 부족");
+    }
+
+    @Test
+    void prepareSpoolFileRejectsPayloadExceedingMaxSpoolBytes() {
+        DicomWebService service = serviceWithHttpClient(
+                mock(HttpClient.class), DataSize.ofMegabytes(1), DataSize.ofMegabytes(1));
+
+        // 최대 허용치 16MB를 넘는 17MB짜리 파일 준비
+        byte[] largeData = new byte[17 * 1024 * 1024];
+        org.springframework.mock.web.MockMultipartFile oversizedFile =
+                new org.springframework.mock.web.MockMultipartFile(
+                        "files", "oversized.dat", "application/octet-stream", largeData);
+
+        assertThatThrownBy(() -> service.prepareSpoolFile(oversizedFile))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("spool 제한을 초과했습니다");
+    }
+
     private DicomWebService serviceWithHttpClient(HttpClient httpClient) {
         return serviceWithHttpClient(httpClient, DataSize.ofMegabytes(1));
     }
 
     private DicomWebService serviceWithHttpClient(HttpClient httpClient, DataSize maxStowResponseSize) {
+        return serviceWithHttpClient(httpClient, maxStowResponseSize, DataSize.ofMegabytes(1));
+    }
+
+    private DicomWebService serviceWithHttpClient(HttpClient httpClient, DataSize maxStowResponseSize, DataSize minFreeDiskSpace) {
         return new DicomWebService(
                 null,
                 null,
@@ -117,9 +175,10 @@ class DicomWebServiceTest {
                 1,
                 tempDir.toString(),
                 DataSize.ofMegabytes(16),
+                minFreeDiskSpace,
                 DataSize.ofMegabytes(8),
                 maxStowResponseSize,
-                2,
+                10,
                 Duration.ofHours(24));
     }
 

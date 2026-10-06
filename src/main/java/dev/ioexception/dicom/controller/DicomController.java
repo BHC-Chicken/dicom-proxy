@@ -2,14 +2,13 @@ package dev.ioexception.dicom.controller;
 
 import dev.ioexception.dicom.controller.swagger.DicomApiDocs;
 import dev.ioexception.dicom.dto.MetadataFormat;
-import dev.ioexception.dicom.dto.dicom.response.DicomForwardResponse;
 import dev.ioexception.dicom.dto.dicom.response.DicomStreamResponse;
 import dev.ioexception.dicom.service.dicom.DicomWebService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +18,15 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import co.elastic.apm.api.ElasticApm;
+import co.elastic.apm.api.Transaction;
+import org.slf4j.MDC;
+
+import dev.ioexception.dicom.domain.job.DicomJob;
+import dev.ioexception.dicom.dto.dicom.response.DicomJobResponse;
+import dev.ioexception.dicom.service.dicom.DicomJobService;
+
+import java.net.URI;
 import java.util.List;
 
 
@@ -28,16 +36,86 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DicomController implements DicomApiDocs {
     private final DicomWebService dicomWebService;
+    private final DicomJobService dicomJobService;
 
     @Override
-    public ResponseEntity<List<DicomForwardResponse>> forwardDicomFilesAsync(
+    public ResponseEntity<DicomJobResponse> submitForwardJob(
             @RequestParam("sourceId") String sourceId,
             @RequestPart(value = "files", required = false) List<MultipartFile> files,
             HttpServletRequest request) {
 
-        List<DicomForwardResponse> result = dicomWebService.processAndForwardDicomAsync(sourceId, files, request);
+        DicomJob job = dicomJobService.submitJob(sourceId, files, request);
+        URI location = URI.create("/api/dicom/jobs/" + job.getJobId());
+        var responseBuilder = ResponseEntity.accepted().location(location);
+        String traceId = resolveCurrentTraceId();
+        if (traceId != null) {
+            responseBuilder.header("X-Trace-Id", traceId);
+        }
+        return responseBuilder.body(DicomJobResponse.from(job));
+    }
 
-        return ResponseEntity.ok(result);
+    @Override
+    public ResponseEntity<DicomJobResponse> getJobStatus(@PathVariable("jobId") String jobId) {
+        String traceId = resolveCurrentTraceId();
+        return dicomJobService.getJob(jobId)
+                .map(job -> {
+                    var responseBuilder = ResponseEntity.ok();
+                    if (traceId != null) {
+                        responseBuilder.header("X-Trace-Id", traceId);
+                    }
+                    return responseBuilder.body(DicomJobResponse.from(job));
+                })
+                .orElseGet(() -> {
+                    var responseBuilder = ResponseEntity.notFound();
+                    if (traceId != null) {
+                        responseBuilder.header("X-Trace-Id", traceId);
+                    }
+                    return responseBuilder.build();
+                });
+    }
+
+    @Override
+    public ResponseEntity<DicomJobResponse> forwardDicomFilesAsync(
+            @RequestParam("sourceId") String sourceId,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files,
+            @RequestParam(value = "redirect", defaultValue = "false") boolean redirect,
+            HttpServletRequest request) {
+
+        if (redirect) {
+            return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
+                    .location(URI.create("/api/dicom/jobs"))
+                    .build();
+        }
+
+        DicomJob job = dicomJobService.submitJob(sourceId, files, request);
+        URI location = URI.create("/api/dicom/jobs/" + job.getJobId());
+        var responseBuilder = ResponseEntity.accepted()
+                .location(location)
+                .header("Deprecation", "true")
+                .header("Link", "</api/dicom/jobs>; rel=\"successor-version\"");
+        String traceId = resolveCurrentTraceId();
+        if (traceId != null) {
+            responseBuilder.header("X-Trace-Id", traceId);
+        }
+        return responseBuilder.body(DicomJobResponse.from(job));
+    }
+
+    private String resolveCurrentTraceId() {
+        try {
+            Transaction tx = ElasticApm.currentTransaction();
+            if (tx != null) {
+                String traceId = tx.getTraceId();
+                if (traceId != null && !traceId.isBlank()) {
+                    return traceId;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        String mdcTraceId = MDC.get("trace.id");
+        if (mdcTraceId != null && !mdcTraceId.isBlank()) {
+            return mdcTraceId;
+        }
+        return null;
     }
 
     @Override

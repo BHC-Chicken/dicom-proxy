@@ -47,10 +47,17 @@ dicom:
   forward:
     spool-dir: "${DICOM_FORWARD_SPOOL_DIR:${java.io.tmpdir}/dicom-proxy-forward}"
     max-spool-size: "${DICOM_FORWARD_MAX_SPOOL_SIZE:5GB}"
+    min-free-disk-space: "${DICOM_FORWARD_MIN_FREE_DISK_SPACE:5GB}"
     max-metadata-scan-size: "${DICOM_FORWARD_MAX_METADATA_SCAN_SIZE:8MB}"
     max-stow-response-size: "${DICOM_FORWARD_MAX_STOW_RESPONSE_SIZE:1MB}"
-    max-concurrent-spools: "${DICOM_FORWARD_MAX_CONCURRENT_SPOOLS:2}"
+    max-concurrent-spools: "${DICOM_FORWARD_MAX_CONCURRENT_SPOOLS:10}"
     stale-spool-retention: "${DICOM_FORWARD_STALE_SPOOL_RETENTION:24h}"
+    job:
+      retention: "${DICOM_FORWARD_JOB_RETENTION:24h}"
+      max-entries: "${DICOM_FORWARD_JOB_MAX_ENTRIES:10000}"
+    admission:
+      enabled: "${DICOM_FORWARD_ADMISSION_ENABLED:true}"
+      max-concurrent-uploads: "${DICOM_FORWARD_MAX_CONCURRENT_UPLOADS:10}"
   scp:
     enabled: "${DICOM_SCP_ENABLED:true}"
     aet: "${DICOM_SCP_AET:DICOM_PROXY}"

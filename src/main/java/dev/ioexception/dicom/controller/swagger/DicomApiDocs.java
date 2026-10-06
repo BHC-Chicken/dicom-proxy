@@ -1,8 +1,11 @@
 package dev.ioexception.dicom.controller.swagger;
 
-import dev.ioexception.dicom.dto.dicom.response.DicomForwardResponse;
+import dev.ioexception.dicom.dto.dicom.response.DicomJobResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
@@ -23,16 +26,49 @@ import java.util.List;
 @Tag(name = "DICOM API", description = "DICOM bounded-memory 스트리밍 프록시 API")
 public interface DicomApiDocs {
 
-	@Operation(summary = "DICOM bounded-memory 스트리밍 중계 (.dat / STOW-RS)", description = "요청을 파일 기반으로 검증해 하나의 Study만 포함하는지 확인한 뒤, 전체 본문을 힙에 적재하지 않고 타겟 DICOM 서버로 전달합니다.")
+	@Operation(summary = "DICOM 비동기 중계 작업 제출 (202 Accepted)", description = "DICOM 요청을 파일 기반으로 스풀링한 뒤 즉시 202 Accepted와 Job Location 헤더를 반환하고, 백그라운드에서 검증 및 포워딩을 수행합니다.")
+	@PostMapping(value = "/jobs", consumes = {
+			MediaType.MULTIPART_FORM_DATA_VALUE,
+			"multipart/related",
+			MediaType.APPLICATION_OCTET_STREAM_VALUE,
+			MediaType.ALL_VALUE
+	})
+	ResponseEntity<DicomJobResponse> submitForwardJob(
+			@Parameter(description = "요청 출처 OID", example = "1.2.410.100110.10.99999981") @RequestParam("sourceId") @NotBlank(message = "source id가 없습니다.") String sourceId,
+			@Parameter(
+					description = "전송할 .dat 패키지 파일 목록 (Swagger UI 다중 파일 첨부 가능)",
+					content = @Content(
+							mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+							array = @ArraySchema(schema = @Schema(type = "string", format = "binary"))
+					)
+			)
+			@RequestPart(value = "files", required = false) List<MultipartFile> files,
+			HttpServletRequest request);
+
+	@Operation(summary = "DICOM 비동기 중계 작업 상태 조회", description = "발급된 Job ID를 이용해 비동기 포워딩 작업의 진행 상태 및 결과를 조회합니다.")
+	@GetMapping(value = "/jobs/{jobId}")
+	ResponseEntity<DicomJobResponse> getJobStatus(
+			@Parameter(description = "작업 식별자 (UUID)", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6") @PathVariable("jobId") String jobId);
+
+	@Deprecated
+	@Operation(summary = "[Deprecated] DICOM bounded-memory 스트리밍 중계 (신규 /jobs 권장)", description = "하위 호환성을 위해 유지되는 엔드포인트입니다. 내부적으로 /api/dicom/jobs로 위임되어 202 Accepted를 반환하거나 307 Redirect를 수행합니다.")
 	@PostMapping(value = "/forward-async", consumes = {
 			MediaType.MULTIPART_FORM_DATA_VALUE,
 			"multipart/related",
 			MediaType.APPLICATION_OCTET_STREAM_VALUE,
 			MediaType.ALL_VALUE
 	})
-	ResponseEntity<List<DicomForwardResponse>> forwardDicomFilesAsync(
+	ResponseEntity<DicomJobResponse> forwardDicomFilesAsync(
 			@Parameter(description = "요청 출처 OID", example = "1.2.410.100110.10.99999981") @RequestParam("sourceId") @NotBlank(message = "source id가 없습니다.") String sourceId,
-			@Parameter(description = "전송할 .dat 패키지 파일 목록 (Swagger UI 다중 파일 첨부 가능)") @RequestPart(value = "files", required = false) List<MultipartFile> files,
+			@Parameter(
+					description = "전송할 .dat 패키지 파일 목록 (Swagger UI 다중 파일 첨부 가능)",
+					content = @Content(
+							mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+							array = @ArraySchema(schema = @Schema(type = "string", format = "binary"))
+					)
+			)
+			@RequestPart(value = "files", required = false) List<MultipartFile> files,
+			@Parameter(description = "HTTP 307 Redirect 강제 여부 (기본 false: 202 내부 위임)") @RequestParam(value = "redirect", defaultValue = "false") boolean redirect,
 			HttpServletRequest request);
 
 	@Operation(summary = "WADO 이미지 조회", description = "UID 값들을 이용해 중계 서버를 거쳐 타겟 서버의 DICOM 데이터를 JPEG 또는 DCM 파일로 조회합니다.")
