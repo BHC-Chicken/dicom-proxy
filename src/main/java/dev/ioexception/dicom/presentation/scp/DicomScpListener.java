@@ -13,11 +13,22 @@ import org.dcm4che3.net.service.BasicCStoreSCP;
 import org.dcm4che3.net.service.DicomServiceRegistry;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.ssl.SslBundle;
+import org.springframework.boot.ssl.SslBundles;
 import org.springframework.stereotype.Component;
 
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedKeyManager;
 import java.io.IOException;
+import java.net.Socket;
+import java.security.Principal;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.UUID;
 import java.util.concurrent.*;
 
@@ -27,6 +38,7 @@ import java.util.concurrent.*;
 @ConditionalOnProperty(value = "dicom.scp.enabled", havingValue = "true", matchIfMissing = true)
 public class DicomScpListener {
     private final DicomCStoreService dicomCStoreService;
+    private final ObjectProvider<SslBundles> sslBundlesProvider;
 
     private Device device;
     private ApplicationEntity ae;
@@ -47,9 +59,18 @@ public class DicomScpListener {
     @Value("${dicom.scp.max-threads}")
     private int maxThreads;
 
+    @Value("${dicom.scp.tls.enabled:false}")
+    private boolean tlsEnabled;
+
+    @Value("${dicom.scp.tls.bundle:dicom-bundle}")
+    private String tlsBundleName;
+
+    @Value("${dicom.scp.tls.need-client-auth:false}")
+    private boolean needClientAuth;
+
     @PostConstruct
     public void startServer() throws Exception {
-        log.info("DICOM SCP(서버) 초기화를 시작합니다...");
+        log.info("DICOM SCP(서버) 초기화를 시작합니다... (TLS: {}, mTLS: {})", tlsEnabled, needClientAuth);
 
         initDeviceAndConnection();
         initApplicationEntity();
@@ -57,7 +78,7 @@ public class DicomScpListener {
         initThreadPools();
 
         device.bindConnections();
-        log.info("DICOM SCP(서버)가 포트 {}에서 구동되었습니다. (AETitle: {})", serverPort, serverAet);
+        log.info("DICOM SCP(서버)가 포트 {}에서 구동되었습니다. (AETitle: {}, TLS: {}, mTLS: {})", serverPort, serverAet, tlsEnabled, needClientAuth);
     }
 
     @PreDestroy
@@ -80,6 +101,105 @@ public class DicomScpListener {
         conn = new Connection();
         conn.setPort(serverPort);
         conn.setBindAddress("0.0.0.0"); // 모든 IP 수신 허용
+
+        if (tlsEnabled) {
+            configureTls();
+        }
+    }
+
+    private void configureTls() {
+        log.info("DICOM SCP TLS 모드를 활성화합니다. (SSL Bundle: {}, mTLS(ClientAuth): {})", tlsBundleName, needClientAuth);
+
+        SslBundles sslBundles = sslBundlesProvider.getIfAvailable();
+        if (sslBundles == null) {
+            throw new IllegalStateException("DICOM SCP TLS가 활성화되었지만 Spring SslBundles 빈을 찾을 수 없습니다.");
+        }
+
+        SslBundle sslBundle = sslBundles.getBundle(tlsBundleName);
+        KeyManager keyManager = createServerKeyManager(sslBundle);
+        device.setKeyManager(keyManager);
+
+        if (needClientAuth) {
+            TrustManager trustManager = createTrustManager(sslBundle);
+            device.setTrustManager(trustManager);
+        } else {
+            device.setTrustManager(null);
+        }
+
+        conn.setTlsProtocols("TLSv1.2", "TLSv1.3");
+        conn.setTlsCipherSuites(
+                "TLS_AES_128_GCM_SHA256",
+                "TLS_AES_256_GCM_SHA384",
+                "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+                "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                "TLS_RSA_WITH_AES_128_CBC_SHA"
+        );
+        conn.setTlsNeedClientAuth(needClientAuth);
+
+        log.info("DICOM SCP TLS 설정 완료 (Protocols: {}, NeedClientAuth: {})",
+                (Object) conn.getTlsProtocols(), conn.isTlsNeedClientAuth());
+    }
+
+    private TrustManager createTrustManager(SslBundle sslBundle) {
+        TrustManager[] trustManagers = sslBundle.getManagers().getTrustManagers();
+        if (trustManagers == null || trustManagers.length == 0) {
+            throw new IllegalStateException("mTLS(클라이언트 인증)가 활성화되었지만 SSL Bundle '" + tlsBundleName + "'에 TrustManager가 구성되어 있지 않습니다.");
+        }
+        return trustManagers[0];
+    }
+
+    private KeyManager createServerKeyManager(SslBundle sslBundle) {
+        KeyManager[] kms = sslBundle.getManagers().getKeyManagers();
+        if (kms == null || kms.length == 0) {
+            throw new IllegalStateException("SSL Bundle '" + tlsBundleName + "'에 KeyManager가 구성되어 있지 않습니다.");
+        }
+        if (kms[0] instanceof X509ExtendedKeyManager originalKm) {
+            return new X509ExtendedKeyManager() {
+                @Override
+                public String[] getServerAliases(String keyType, Principal[] issuers) {
+                    String[] aliases = originalKm.getServerAliases(keyType, issuers);
+                    return (aliases != null && aliases.length > 0) ? aliases : new String[]{"ssl"};
+                }
+
+                @Override
+                public String chooseServerAlias(String keyType, Principal[] issuers, Socket socket) {
+                    String alias = originalKm.chooseServerAlias(keyType, issuers, socket);
+                    return (alias != null) ? alias : "ssl";
+                }
+
+                @Override
+                public String chooseEngineServerAlias(String keyType, Principal[] issuers, SSLEngine engine) {
+                    String alias = originalKm.chooseEngineServerAlias(keyType, issuers, engine);
+                    return (alias != null) ? alias : "ssl";
+                }
+
+                @Override
+                public String[] getClientAliases(String keyType, Principal[] issuers) {
+                    return originalKm.getClientAliases(keyType, issuers);
+                }
+
+                @Override
+                public String chooseClientAlias(String[] keyType, Principal[] issuers, Socket socket) {
+                    return originalKm.chooseClientAlias(keyType, issuers, socket);
+                }
+
+                @Override
+                public String chooseEngineClientAlias(String[] keyType, Principal[] issuers, SSLEngine engine) {
+                    return originalKm.chooseEngineClientAlias(keyType, issuers, engine);
+                }
+
+                @Override
+                public X509Certificate[] getCertificateChain(String alias) {
+                    return originalKm.getCertificateChain(alias);
+                }
+
+                @Override
+                public PrivateKey getPrivateKey(String alias) {
+                    return originalKm.getPrivateKey(alias);
+                }
+            };
+        }
+        return kms[0];
     }
 
     private void initApplicationEntity() {
@@ -111,7 +231,7 @@ public class DicomScpListener {
         // 1. Worker Thread Pool (실제 수신 처리 전담)
         // 병렬 수신을 위해 트래픽에 따라 스레드가 유동적으로 늘어남 (최대 maxThreads 제한으로 OOM 방어)
         executorService = new ThreadPoolExecutor(
-                10, maxThreads, 60L, TimeUnit.SECONDS,
+                10, Math.max(10, maxThreads), 60L, TimeUnit.SECONDS,
                 new SynchronousQueue<>() // 큐에 대기시키지 않고 스레드 초과 시 즉시 Reject (방어 기제)
         ) {
             @Override

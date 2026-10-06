@@ -19,8 +19,8 @@ ENV JAVA_OPTS="-Dhttps.protocols=TLSv1,TLSv1.1,TLSv1.2 \
                -Djdk.tls.client.protocols=TLSv1,TLSv1.1,TLSv1.2 \
                -Dsun.security.ssl.allowUnsafeRenegotiation=true"
 
-# 스프링 부트 기본 포트 노출 (application.yaml에 정의된 80 포트)
-EXPOSE 80
+# 스프링 부트 기본 포트(80) 및 DICOM SCP 포트(11112) 노출
+EXPOSE 80 11112
 
 # 컨테이너가 켜질 때 Elastic APM Agent와 함께 스프링 부트 앱 실행
 ENTRYPOINT ["sh", "-c", "java -javaagent:/app/elastic-apm-agent.jar $JAVA_OPTS -jar app.jar"]

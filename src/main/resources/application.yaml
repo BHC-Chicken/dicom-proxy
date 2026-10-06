@@ -10,10 +10,10 @@ spring:
         dicom-bundle:
           keystore:
             certificate: "${CERTIFICATE_PATH:classpath:dummy.crt}"
-            private-key: "${CERTIFICATE_PATH:classpath:dummy.key}"
+            private-key: "${PRIVATE_KEY_PATH:${CERTIFICATE_PATH:classpath:dummy.key}}"
             private-key-password: "${CERTIFICATE_PASSWORD:dummy}"
           truststore:
-            certificate: "${CERTIFICATE_PATH:classpath:dummy.crt}"
+            certificate: "${CLIENT_CA_PATH:${TRUSTSTORE_PATH:${CERTIFICATE_PATH:classpath:dummy.crt}}}"
           key:
             password: "${CERTIFICATE_PASSWORD:dummy}"
   servlet:
@@ -65,6 +65,10 @@ dicom:
     allowed-aets: "${DICOM_SCP_ALLOWED_AETS:ANY}"
     base-dir: "${DICOM_SCP_BASE_DIR:./dicom_store}"
     max-threads: "${DICOM_SCP_MAX_THREADS:10}"
+    tls:
+      enabled: "${DICOM_SCP_TLS_ENABLED:false}"
+      bundle: "${DICOM_SCP_TLS_BUNDLE:dicom-bundle}"
+      need-client-auth: "${DICOM_SCP_TLS_NEED_CLIENT_AUTH:${DICOM_SCP_MTLS_ENABLED:false}}"
 
 server:
   port: 80
