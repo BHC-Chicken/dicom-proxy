@@ -76,3 +76,11 @@ server:
 logging:
   level:
     dev.ioexception.dicom: DEBUG
+
+google:
+  ai:
+    api-key: "${GOOGLE_AI_API_KEY:}"
+    embedding-model: "${GOOGLE_AI_EMBEDDING_MODEL:gemini-embedding-2}"
+    output-dimensionality: "${GOOGLE_AI_OUTPUT_DIMENSIONALITY:768}"
+    chat-model: "${GOOGLE_AI_CHAT_MODEL:gemini-3.5-flash-lite}"
+
