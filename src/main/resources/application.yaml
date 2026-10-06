@@ -51,9 +51,6 @@ dicom:
     max-stow-response-size: "${DICOM_FORWARD_MAX_STOW_RESPONSE_SIZE:1MB}"
     max-concurrent-spools: "${DICOM_FORWARD_MAX_CONCURRENT_SPOOLS:2}"
     stale-spool-retention: "${DICOM_FORWARD_STALE_SPOOL_RETENTION:24h}"
-  purge:
-    enabled: "${PURGE_ENABLED:false}"
-    max-threads: "${PURGE_MAX_THREADS:5}"
   scp:
     enabled: "${DICOM_SCP_ENABLED:true}"
     aet: "${DICOM_SCP_AET:DICOM_PROXY}"

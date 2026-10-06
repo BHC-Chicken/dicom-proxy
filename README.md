@@ -154,8 +154,6 @@ files: [study_1.2.410.xxxxxx.dat, study_1.2.410.yyyyyy.dat]
 | **`DICOM_FORWARD_MAX_STOW_RESPONSE_SIZE`** | `1MB` | **💡 선택** | 타겟 STOW-RS XML 응답의 최대 메모리 처리 크기 |
 | **`DICOM_FORWARD_MAX_CONCURRENT_SPOOLS`** | `2` | **💡 선택** | 동시에 생성·검증·전송할 spool 파일 수 |
 | **`DICOM_FORWARD_STALE_SPOOL_RETENTION`** | `24h` | **💡 선택** | 비정상 종료 후 남은 전용 spool 파일의 보존 시간 |
-| **`PURGE_ENABLED`** | `false` | **💡 선택 (기본값: false)** | DICOM Purge 배치 서비스 활성화 여부 (`true` 설정 시 기능 활성화) |
-| **`PURGE_MAX_THREADS`** | `5` | **💡 선택** | DICOM 퍼지(Purge) 아카이빙 배치 처리 시 최대 동시 작업 스레드 수 |
 | **`CERTIFICATE_PATH`** | `/app/certs/server.pem` | **💡 선택 (mTLS)** | mTLS 인증 전송 시 사용할 클라이언트 SSL/TLS 인증서 파일 경로 |
 | **`CERTIFICATE_PASSWORD`** | `your_cert_password` | **💡 선택 (mTLS)** | 클라이언트 인증서 개인키(Private Key) 비밀번호 |
 | **`CAPATH`** | `/app/certs/ca.crt` | **💡 선택 (mTLS)** | 타겟 PACS 서버의 SSL 검증용 CA 루트 인증서 경로 |
@@ -164,7 +162,6 @@ files: [study_1.2.410.xxxxxx.dat, study_1.2.410.yyyyyy.dat]
 | **`SPRING_ELASTICSEARCH_USERNAME`** | `elastic` | **💡 선택 (APM)** | ElasticSearch 계정 ID |
 | **`SPRING_ELASTICSEARCH_PASSWORD`** | `your_elastic_password` | **💡 선택 (APM)** | ElasticSearch 계정 비밀번호 |
 
-> Purge 아카이브의 원자적 no-replace publish는 임시 ZIP과 최종 ZIP 사이의 hard link를 사용합니다. Purge 요청의 출력 디렉터리는 hard link를 지원하는 파일시스템이어야 하며, 미지원 파일시스템에서는 기존 ZIP을 덮어쓰지 않고 안전하게 실패합니다.
 
 ### 3. `application.yaml` 구성 예시
 

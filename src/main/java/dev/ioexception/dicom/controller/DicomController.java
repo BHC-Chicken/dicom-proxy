@@ -2,11 +2,8 @@ package dev.ioexception.dicom.controller;
 
 import dev.ioexception.dicom.controller.swagger.DicomApiDocs;
 import dev.ioexception.dicom.dto.MetadataFormat;
-import dev.ioexception.dicom.dto.request.PurgeRequest;
 import dev.ioexception.dicom.dto.response.DicomForwardResponse;
 import dev.ioexception.dicom.dto.response.DicomStreamResponse;
-import dev.ioexception.dicom.dto.response.PurgeSummaryInfoResponse;
-import dev.ioexception.dicom.service.DicomPurgeService;
 import dev.ioexception.dicom.service.DicomWebService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +13,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,14 +21,12 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import java.util.List;
 
-import org.springframework.beans.factory.ObjectProvider;
 
 @Slf4j
 @Validated
 @RestController
 @RequiredArgsConstructor
 public class DicomController implements DicomApiDocs {
-    private final ObjectProvider<DicomPurgeService> dicomPurgeServiceProvider;
     private final DicomWebService dicomWebService;
 
     @Override
@@ -115,14 +109,4 @@ public class DicomController implements DicomApiDocs {
         return ResponseEntity.ok("KOS 문서가 성공적으로 생성 및 등록되었습니다.");
     }
 
-    @Override
-    public ResponseEntity<PurgeSummaryInfoResponse> purgeDicom(@RequestBody PurgeRequest purgeRequest) {
-        DicomPurgeService dicomPurgeService = dicomPurgeServiceProvider.getIfAvailable();
-        if (dicomPurgeService == null) {
-            throw new IllegalStateException("Purge 기능이 비활성화되어 있습니다. (dicom.purge.enabled=true 필요)");
-        }
-        PurgeSummaryInfoResponse response = dicomPurgeService.executePurgeProcess(purgeRequest);
-
-        return ResponseEntity.ok(response);
-    }
 }

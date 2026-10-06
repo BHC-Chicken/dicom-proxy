@@ -1,8 +1,6 @@
 package dev.ioexception.dicom.controller.swagger;
 
-import dev.ioexception.dicom.dto.request.PurgeRequest;
 import dev.ioexception.dicom.dto.response.DicomForwardResponse;
-import dev.ioexception.dicom.dto.response.PurgeSummaryInfoResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -73,7 +70,4 @@ public interface DicomApiDocs {
 			@Parameter(description = "포함할 Group 태그 (Hex 콤마 구분, 예: 0010,0020)") @RequestParam(value = "groups", required = false) String groups,
 			@Parameter(description = "XSL 스타일시트 URL (HTML 요청 시 필수)") @RequestParam(value = "xsl", required = false) String xsl);
 
-	@Operation(summary = "DICOM 데이터 영구 정리 (Purge)", description = "지정된 기간과 옵션(정합성 검증, 아카이빙 압축, 삭제)에 따라 대상 Study의 원본 DICOM 데이터를 삭제 및 백업 처리합니다.")
-	@PostMapping(value = "/purge", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<PurgeSummaryInfoResponse> purgeDicom(@RequestBody PurgeRequest request);
 }

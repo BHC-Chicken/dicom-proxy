@@ -28,7 +28,6 @@ services:
       - DICOM_FORWARD_MAX_STOW_RESPONSE_SIZE=1MB
       - DICOM_FORWARD_MAX_CONCURRENT_SPOOLS=2
       - DICOM_FORWARD_STALE_SPOOL_RETENTION=24h
-      - PURGE_MAX_THREADS=5
 
       # DICOM SCP 관련 설정
       - DICOM_SCP_ENABLED=false
@@ -41,9 +40,6 @@ services:
       # Discord 알림 설정
       - DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
 
-      # DICOM Purge 배치 서비스 활성화 (기본값: false, 사용 시 PURGE_ENABLED=true)
-      - PURGE_ENABLED=false
-      - PURGE_MAX_THREADS=5
 
       # PostgreSQL 데이터베이스 설정 (필수)
       - POSTGRESQL_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/dicom_db
