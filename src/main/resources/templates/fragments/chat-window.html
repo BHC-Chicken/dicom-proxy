@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<main th:fragment="chatWindow" class="chat-window">
+    <header class="chat-header">
+        <div class="chat-title-info">
+            <h2 id="current-session-title">새로운 대화</h2>
+            <span id="current-session-subtitle" class="subtitle">Confluence 사내 지식 기반 RAG AI 조력자</span>
+        </div>
+    </header>
+
+    <!-- 활성화된 필터 태그 바 -->
+    <div id="active-filter-bar" class="active-filter-bar hidden">
+        <span class="filter-label"><i class="fa-solid fa-filter"></i> 적용된 필터:</span>
+        <div id="filter-tags" class="filter-tags"></div>
+        <button id="btn-clear-filters" class="btn-text-link">초기화</button>
+    </div>
+
+    <!-- 대화 메시지 영역 -->
+    <div id="messages-container" class="messages-container">
+        <!-- JS로 메시지 동적 추가 -->
+    </div>
+
+    <!-- 입력 박스 영역 -->
+    <div class="input-container">
+        <form id="chat-form" onsubmit="return false;">
+            <div class="input-wrapper">
+                <button type="button" id="btn-open-filter" class="btn-icon filter-btn-input" title="검색 필터 설정">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span id="filter-badge" class="filter-badge hidden"></span>
+                </button>
+                <textarea id="chat-input" placeholder="사내 문서에 대해 질문해 주세요... (Shift+Enter로 줄바꿈)" rows="1"></textarea>
+                <button type="submit" id="btn-send" class="btn-send" disabled title="질문 전송">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</main>
+</body>
+</html>

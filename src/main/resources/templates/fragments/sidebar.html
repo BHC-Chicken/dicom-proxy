@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<aside th:fragment="sidebar" class="sidebar">
+    <div class="sidebar-header">
+        <div class="logo">
+            <i class="fa-solid fa-brain"></i>
+            <span>Confluence RAG</span>
+        </div>
+        <button id="btn-new-chat" class="btn-new-chat" title="새로운 대화 시작">
+            <i class="fa-solid fa-plus"></i> 새 대화
+        </button>
+    </div>
+
+    <div class="sidebar-section-title">최근 대화 목록</div>
+
+    <div id="session-list" class="session-list">
+        <!-- JS로 동적 생성되는 세션 목록 아이템들 -->
+    </div>
+
+    <div class="sidebar-footer">
+        <div class="user-info">
+            <i class="fa-solid fa-circle-user"></i>
+            <span>AI Knowledge Assistant</span>
+        </div>
+    </div>
+</aside>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="filterModal" id="filter-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-filter"></i> RAG 검색 필터 설정</h3>
+            <div class="modal-header-actions">
+                <button id="btn-refresh-metadata" class="btn-icon-sm" title="작성자/공간 목록 새로고침">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+                <button id="btn-close-modal" class="btn-close">&times;</button>
+            </div>
+        </div>
+        <div class="modal-body">
+            <!-- 1. 작성자 선택 (검색 가능 드롭다운) -->
+            <div class="form-group">
+                <label for="filter-author"><i class="fa-solid fa-user-pen"></i> 작성자 (Author)</label>
+                <div class="select-search-wrapper">
+                    <input type="text" id="filter-author-search" class="form-control select-search-input" placeholder="작성자 검색 또는 선택..." autocomplete="off">
+                    <ul id="filter-author-dropdown" class="custom-dropdown hidden"></ul>
+                </div>
+            </div>
+
+            <!-- 2. Confluence 공간 선택 (검색 가능 드롭다운) -->
+            <div class="form-group">
+                <label for="filter-space"><i class="fa-solid fa-folder-tree"></i> Confluence 공간 (Space)</label>
+                <div class="select-search-wrapper">
+                    <input type="text" id="filter-space-search" class="form-control select-search-input" placeholder="공간 키 검색 또는 선택..." autocomplete="off">
+                    <ul id="filter-space-dropdown" class="custom-dropdown hidden"></ul>
+                </div>
+            </div>
+
+            <!-- 3. 문서 작성일 범위 선택 (달력) -->
+            <div class="form-group">
+                <label><i class="fa-regular fa-calendar-days"></i> 문서 작성일 범위 (Created Date)</label>
+                <div class="date-range-group">
+                    <input type="date" id="filter-start-date" class="form-control">
+                    <span class="date-sep">~</span>
+                    <input type="date" id="filter-end-date" class="form-control">
+                </div>
+            </div>
+
+            <!-- 4. 참조 문서 개수 (topK) 선택 -->
+            <div class="form-group">
+                <label for="filter-topk"><i class="fa-solid fa-list-ol"></i> 참조 문서 검색 개수 (topK: 1~30)</label>
+                <input type="number" id="filter-topk" class="form-control" min="1" max="30" value="8" placeholder="8 (기본값)">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="btn-reset-filter-modal" class="btn-secondary">초기화</button>
+            <button id="btn-apply-filter-modal" class="btn-primary">필터 적용</button>
+        </div>
+    </div>
+</div>
+</body>
+</html>
